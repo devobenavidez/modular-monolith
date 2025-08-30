@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Oscar Mauricio Benavidez Suarez - Celuweb",
+  "classifications": [
+    "Web",
+    "API",
+    "Monolith",
+    "Clean Architecture",
+    "CQRS",
+    "Modular"
+  ],
+  "name": "Celuweb Modular Monolith",
+  "identity": "Celuweb.ModularMonolith.Template",
+  "groupIdentity": "Celuweb.ModularMonolith",
+  "shortName": "modular-monolith",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "__ApplicationName__",
+  "preferNameDirectory": true,
+  "description": "Template para crear monolitos modulares con Clean Architecture, CQRS, Mediator, PostgreSQL y Prometheus",
+  "symbols": {
+    "ApplicationName": {
+      "type": "parameter",
+      "description": "Nombre de la aplicación monolítica",
+      "datatype": "string",
+      "defaultValue": "__ApplicationName__",
+      "replaces": "__ApplicationName__"
+    },
+    "RootNamespace": {
+      "type": "parameter",
+      "description": "Namespace raíz (empresa.app)",
+      "datatype": "string",
+      "defaultValue": "__ApplicationName__",
+      "replaces": "__RootNamespace__"
+    },
+    "AddDocker": {
+      "type": "parameter",
+      "description": "Incluir Dockerfile y docker-compose",
+      "datatype": "bool",
+      "defaultValue": "true"
+    },
+    "AddSampleModule": {
+      "type": "parameter",
+      "description": "Incluir módulo de ejemplo (Orders)",
+      "datatype": "bool",
+      "defaultValue": "true"
+    },
+    "PostgreSQLVersion": {
+      "type": "parameter",
+      "description": "Versión de PostgreSQL para Docker",
+      "datatype": "string",
+      "defaultValue": "15"
+    },
+    "ExcludeGitIgnore": {
+      "type": "parameter",
+      "description": "Excluir .gitignore",
+      "datatype": "bool",
+      "defaultValue": "false"
+    },
+    "Framework": {
+      "type": "parameter",
+      "description": "Target framework",
+      "datatype": "choice",
+      "choices": [
+        {
+          "choice": "net8.0",
+          "description": ".NET 8.0"
+        }
+      ],
+      "defaultValue": "net8.0",
+      "replaces": "__Framework__"
+    }
+  },
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "exclude": [
+        ".template.config/**/*",
+        "template-structure.json",
+        "monolith-template-structure.json",
+        "**/*.log",
+        "**/bin/**",
+        "**/obj/**",
+        "**/.vs/**",
+        "**/.git/**",
+        "**/.vscode/**"
+      ],
+      "modifiers": [
+        {
+          "condition": "(!AddDocker)",
+          "exclude": [
+            "docker/**/*",
+            "docker-compose.yml",
+            "docker-compose.override.yml",
+            "Dockerfile",
+            ".dockerignore"
+          ]
+        },
+        {
+          "condition": "(!AddSampleModule)",
+          "exclude": [
+            "src/Modules/Orders/**/*",
+            "tests/Unit/Orders.Application.Tests/**/*"
+          ]
+        },
+        {
+          "condition": "(ExcludeGitIgnore)",
+          "exclude": [
+            ".gitignore"
+          ]
+        }
+      ]
+    }
+  ],
+  "primaryOutputs": [
+    {
+      "path": "__ApplicationName__.sln"
+    },
+    {
+      "path": "src/__ApplicationName__.Api/__ApplicationName__.Api.csproj"
+    }
+  ],
+  "postActions": [
+    {
+      "condition": "(!skipRestore)",
+      "description": "Restore NuGet packages required by this project.",
+      "manualInstructions": [
+        {
+          "text": "Run 'dotnet restore'"
+        }
+      ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
+    },
+    {
+      "condition": "(OS != \"Windows_NT\")",
+      "description": "Make scripts executable on Unix.",
+      "manualInstructions": [
+        {
+          "text": "Run 'chmod +x scripts/*.sh'"
+        }
+      ],
+      "actionId": "cb9a6cf3-4f5c-4860-b9d2-03a574959774",
+      "args": {
+        "+x": "scripts/*.sh"
+      },
+      "continueOnError": true
+    }
+  ]
+}

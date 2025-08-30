@@ -1,0 +1,57 @@
+<Project>
+
+  <!-- Global MSBuild targets -->
+
+  <!-- Ensure all projects have consistent formatting -->
+  <Target Name="FormatCode" BeforeTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Message Text="Checking code formatting..." Importance="normal" />
+  </Target>
+
+  <!-- Custom targets for development -->
+  <Target Name="RestoreAndBuild">
+    <Exec Command="dotnet restore" />
+    <Exec Command="dotnet build --no-restore" />
+  </Target>
+
+  <Target Name="RunTests" DependsOnTargets="Build">
+    <Exec Command="dotnet test --no-build --verbosity normal" />
+  </Target>
+
+  <Target Name="RunTestsWithCoverage" DependsOnTargets="Build">
+    <Exec Command="dotnet test --no-build --collect:&quot;XPlat Code Coverage&quot;" />
+  </Target>
+
+  <!-- Docker targets -->
+  <Target Name="DockerBuild">
+    <Exec Command="docker build -t __ApplicationName__:latest -f docker/Dockerfile ." />
+  </Target>
+
+  <Target Name="DockerRun" DependsOnTargets="DockerBuild">
+    <Exec Command="docker-compose up -d" />
+  </Target>
+
+  <!-- Database targets -->
+  <Target Name="UpdateDatabase">
+    <Exec Command="dotnet ef database update --project src/__ApplicationName__.Shared --startup-project src/__ApplicationName__.Api" />
+  </Target>
+
+  <Target Name="AddMigration">
+    <PropertyGroup>
+      <MigrationName Condition="'$(MigrationName)' == ''">NewMigration</MigrationName>
+    </PropertyGroup>
+    <Exec Command="dotnet ef migrations add $(MigrationName) --project src/__ApplicationName__.Shared --startup-project src/__ApplicationName__.Api" />
+  </Target>
+
+  <!-- Clean logs and temporary files -->
+  <Target Name="CleanAll" DependsOnTargets="Clean">
+    <ItemGroup>
+      <LogFiles Include="logs/**/*" />
+      <TempFiles Include="**/bin/**/*" />
+      <TempFiles Include="**/obj/**/*" />
+    </ItemGroup>
+    <Delete Files="@(LogFiles)" ContinueOnError="true" />
+    <Delete Files="@(TempFiles)" ContinueOnError="true" />
+    <RemoveDir Directories="logs" ContinueOnError="true" />
+  </Target>
+
+</Project>

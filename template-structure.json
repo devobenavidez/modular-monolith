@@ -1,0 +1,592 @@
+{
+  "templateInfo": {
+    "name": "Celuweb Microservice Template",
+    "version": "1.0.0",
+    "description": "Template para microservicios con Clean Architecture y Mediator 3.0",
+    "author": "Oscar Mauricio Benavidez Suarez",    "technologies": [
+      ".NET 8.0",
+      "ASP.NET Core Web API",
+      "Mediator.SourceGenerator 3.0",
+      "Entity Framework Core",
+      "Dapper",
+      "FluentValidation",
+      "Serilog",
+      "Docker",
+      "xUnit"
+    ]
+  },
+  "parameters": {
+    "RootNamespace": {
+      "type": "string",
+      "description": "Namespace raíz (por ejemplo: MiEmpresa.MiServicio)"
+    },
+    "UseEfCore": {
+      "type": "boolean",
+      "description": "Agregar EF Core e infraestructura de persistencia",
+      "defaultValue": true
+    },
+    "AddTests": {
+      "type": "boolean", 
+      "description": "Crear proyectos de pruebas",
+      "defaultValue": true
+    },
+    "AddDocker": {
+      "type": "boolean",
+      "description": "Incluir Dockerfile y .dockerignore", 
+      "defaultValue": true
+    }
+  },
+  "structure": {
+    "root": {
+      "files": [
+        {
+          "name": ".editorconfig",
+          "type": "config",
+          "description": "Configuración de formato de código"
+        },
+        {
+          "name": ".gitignore", 
+          "type": "config",
+          "description": "Archivos ignorados por Git"
+        },
+        {
+          "name": "Directory.Build.props",
+          "type": "msbuild",
+          "description": "Propiedades comunes de MSBuild"
+        },
+        {
+          "name": "Directory.Build.targets",
+          "type": "msbuild", 
+          "description": "Targets comunes de MSBuild"
+        },
+        {
+          "name": "global.json",
+          "type": "config",
+          "description": "Configuración del SDK de .NET"
+        },
+        {
+          "name": "README.md",
+          "type": "documentation",
+          "description": "Documentación principal del proyecto"
+        },
+        {
+          "name": "GETTING-STARTED.md",
+          "type": "documentation", 
+          "description": "Guía de inicio rápido"
+        },
+        {
+          "name": "docker-compose.yml",
+          "type": "docker",
+          "description": "Configuración Docker para producción",
+          "condition": "AddDocker"
+        },
+        {
+          "name": "docker-compose.override.yml", 
+          "type": "docker",
+          "description": "Configuración Docker para desarrollo",
+          "condition": "AddDocker"
+        }
+      ],
+      "directories": {
+        ".github": {
+          "description": "Configuración de GitHub Actions",
+          "directories": {
+            "workflows": {
+              "files": [
+                {
+                  "name": "ci.yml",
+                  "type": "cicd",
+                  "description": "Pipeline de CI/CD"
+                }
+              ]
+            }
+          }
+        },
+        "docker": {
+          "description": "Archivos relacionados con Docker",
+          "condition": "AddDocker",
+          "files": [
+            {
+              "name": "Dockerfile",
+              "type": "docker",
+              "description": "Configuración de imagen Docker"
+            },
+            {
+              "name": ".dockerignore",
+              "type": "docker", 
+              "description": "Archivos ignorados por Docker"
+            }
+          ]
+        },
+        "src": {
+          "description": "Código fuente del microservicio",
+          "directories": {
+            "__ServiceName__": {
+              "description": "Proyecto principal del microservicio",
+              "directories": {                "__ServiceName__.Api": {
+                  "description": "Capa de presentación - API Controllers",
+                  "type": "project",
+                  "framework": "Microsoft.NET.Sdk.Web",
+                  "dependencies": [
+                    "Mediator.SourceGenerator",
+                    "Serilog.AspNetCore",
+                    "Swashbuckle.AspNetCore"
+                  ],
+                  "projectReferences": [
+                    "__ServiceName__.Application",
+                    "__ServiceName__.Domain", 
+                    "__ServiceName__.Infrastructure"
+                  ],
+                  "files": [
+                    {
+                      "name": "__ServiceName__.Api.csproj",
+                      "type": "project",
+                      "description": "Archivo de proyecto del API"
+                    },
+                    {
+                      "name": "Program.cs",
+                      "type": "code",
+                      "description": "Punto de entrada de la aplicación"
+                    },
+                    {
+                      "name": "appsettings.json",
+                      "type": "config",
+                      "description": "Configuración de la aplicación"
+                    },
+                    {
+                      "name": "appsettings.Development.json",
+                      "type": "config", 
+                      "description": "Configuración para desarrollo"
+                    }
+                  ],
+                  "directories": {
+                    "Controllers": {
+                      "description": "Controladores de la API",
+                      "files": [
+                        {
+                          "name": "HealthController.cs",
+                          "type": "code",
+                          "description": "Controlador de health check"
+                        },
+                        {
+                          "name": "SampleController.cs",
+                          "type": "code",
+                          "description": "Controlador CRUD de ejemplos"
+                        }
+                      ]
+                    },
+                    "Extensions": {
+                      "description": "Métodos de extensión para configuración",
+                      "files": [
+                        {
+                          "name": "DependencyInjection.cs",
+                          "type": "code",
+                          "description": "Configuración de DI del API"
+                        },
+                        {
+                          "name": "OpenApiExtensions.cs", 
+                          "type": "code",
+                          "description": "Configuración de Swagger/OpenAPI"
+                        }
+                      ]
+                    },
+                    "Properties": {
+                      "description": "Propiedades del proyecto",
+                      "files": [
+                        {
+                          "name": "launchSettings.json",
+                          "type": "config",
+                          "description": "Configuración de ejecución"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "__ServiceName__.Application": {
+                  "description": "Capa de aplicación - Casos de uso y lógica de aplicación",
+                  "type": "project",
+                  "framework": "Microsoft.NET.Sdk",                  "dependencies": [
+                    "Mediator.Abstractions",
+                    "FluentValidation"
+                  ],
+                  "projectReferences": [
+                    "__ServiceName__.Domain"
+                  ],
+                  "files": [
+                    {
+                      "name": "__ServiceName__.Application.csproj",
+                      "type": "project",
+                      "description": "Archivo de proyecto de Application"
+                    },
+                    {
+                      "name": "AssemblyMarker.cs",
+                      "type": "code",
+                      "description": "Marcador del assembly para Mediator"
+                    },
+                    {
+                      "name": "DependencyInjection.cs",
+                      "type": "code", 
+                      "description": "Configuración de DI de Application"
+                    }
+                  ],
+                  "directories": {                    "Abstractions": {
+                      "description": "Interfaces y abstracciones",
+                      "files": [
+                        {
+                          "name": "IDateTime.cs",
+                          "type": "code",
+                          "description": "Abstracción para servicios de fecha/hora"
+                        },
+                        {
+                          "name": "IRepository.cs",
+                          "type": "code",
+                          "description": "Interface genérica para repositorios de escritura (EF Core)"
+                        },
+                        {
+                          "name": "IReadOnlyRepository.cs",
+                          "type": "code",
+                          "description": "Interface genérica para repositorios de lectura (Dapper)"
+                        },
+                        {
+                          "name": "ISampleRepository.cs",
+                          "type": "code",
+                          "description": "Interface específica para repositorio de Sample"
+                        },
+                        {
+                          "name": "ISampleReadOnlyRepository.cs",
+                          "type": "code",
+                          "description": "Interface específica para consultas de Sample"
+                        }
+                      ]
+                    },
+                    "Behaviors": {
+                      "description": "Comportamientos de Mediator (Pipelines)",
+                      "condition": "UseEfCore",
+                      "files": [
+                        {
+                          "name": "ValidationBehavior.cs",
+                          "type": "code",
+                          "description": "Pipeline de validación con FluentValidation"
+                        }
+                      ]
+                    },
+                    "Common": {
+                      "description": "Clases comunes y utilidades",
+                      "files": [
+                        {
+                          "name": "Result.cs",
+                          "type": "code",
+                          "description": "Clase para manejo de resultados"
+                        }
+                      ]
+                    },
+                    "Contracts": {
+                      "description": "DTOs y contratos de la API",
+                      "files": [
+                        {
+                          "name": "CreateSample.cs",
+                          "type": "code",
+                          "description": "Contratos para crear samples"
+                        }
+                      ]
+                    },
+                    "Handlers": {
+                      "description": "Handlers de Mediator",
+                      "files": [
+                        {
+                          "name": "CreateSampleHandler.cs",
+                          "type": "code",
+                          "description": "Handler para crear samples"
+                        }
+                      ]
+                    },
+                    "Validators": {
+                      "description": "Validadores de FluentValidation",
+                      "files": [
+                        {
+                          "name": "CreateSampleValidator.cs",
+                          "type": "code",
+                          "description": "Validador para CreateSampleRequest"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "__ServiceName__.Domain": {
+                  "description": "Capa de dominio - Entidades y lógica de negocio",
+                  "type": "project",
+                  "framework": "Microsoft.NET.Sdk",
+                  "dependencies": [],
+                  "projectReferences": [],
+                  "files": [
+                    {
+                      "name": "__ServiceName__.Domain.csproj",
+                      "type": "project",
+                      "description": "Archivo de proyecto de Domain"
+                    }
+                  ],
+                  "directories": {
+                    "Entities": {
+                      "description": "Entidades del dominio",
+                      "files": [
+                        {
+                          "name": "Sample.cs",
+                          "type": "code",
+                          "description": "Entidad de ejemplo"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "__ServiceName__.Infrastructure": {
+                  "description": "Capa de infraestructura - Persistencia y servicios externos",
+                  "type": "project",
+                  "framework": "Microsoft.NET.Sdk",
+                  "condition": "UseEfCore",                  "dependencies": [
+                    "Microsoft.EntityFrameworkCore",
+                    "Microsoft.EntityFrameworkCore.SqlServer",
+                    "Microsoft.EntityFrameworkCore.Design",
+                    "Dapper",
+                    "Microsoft.Data.SqlClient"
+                  ],
+                  "projectReferences": [
+                    "__ServiceName__.Application",
+                    "__ServiceName__.Domain"
+                  ],
+                  "files": [
+                    {
+                      "name": "__ServiceName__.Infrastructure.csproj",
+                      "type": "project",
+                      "description": "Archivo de proyecto de Infrastructure"
+                    },
+                    {
+                      "name": "DependencyInjection.cs",
+                      "type": "code",
+                      "description": "Configuración de DI de Infrastructure"
+                    }
+                  ],
+                  "directories": {
+                    "Config": {
+                      "description": "Configuraciones de infraestructura",
+                      "condition": "UseEfCore",
+                      "files": [
+                        {
+                          "name": "DatabaseOptions.cs",
+                          "type": "code",
+                          "description": "Opciones de configuración de base de datos"
+                        }
+                      ]
+                    },                    "Persistence": {
+                      "description": "Acceso a datos y persistencia",
+                      "condition": "UseEfCore", 
+                      "files": [
+                        {
+                          "name": "AppDbContext.cs",
+                          "type": "code",
+                          "description": "Contexto de Entity Framework"
+                        }
+                      ],
+                      "directories": {
+                        "Configurations": {
+                          "description": "Configuraciones de entidades de EF Core",
+                          "files": [
+                            {
+                              "name": "SampleConfiguration.cs",
+                              "type": "code",
+                              "description": "Configuración de la entidad Sample"
+                            }
+                          ]
+                        },
+                        "Repositories": {
+                          "description": "Implementaciones de repositorios",
+                          "files": [
+                            {
+                              "name": "Repository.cs",
+                              "type": "code",
+                              "description": "Repositorio genérico para escritura con EF Core"
+                            },
+                            {
+                              "name": "ReadOnlyRepository.cs",
+                              "type": "code",
+                              "description": "Repositorio genérico para lectura con Dapper"
+                            },
+                            {
+                              "name": "SampleRepository.cs",
+                              "type": "code",
+                              "description": "Repositorio específico de Sample para CRUD"
+                            },
+                            {
+                              "name": "SampleReadOnlyRepository.cs",
+                              "type": "code",
+                              "description": "Repositorio específico de Sample para consultas optimizadas"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "Services": {
+                      "description": "Implementaciones de servicios",
+                      "files": [
+                        {
+                          "name": "SystemDateTime.cs",
+                          "type": "code",
+                          "description": "Implementación de IDateTime"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tests": {
+          "description": "Proyectos de pruebas",
+          "condition": "AddTests",
+          "directories": {
+            "__ServiceName__.Api.Tests": {
+              "description": "Pruebas de integración del API",
+              "type": "project",
+              "framework": "Microsoft.NET.Sdk",
+              "dependencies": [
+                "Microsoft.NET.Test.Sdk",
+                "xunit",
+                "xunit.runner.visualstudio",
+                "coverlet.collector",
+                "Microsoft.AspNetCore.Mvc.Testing"
+              ],
+              "projectReferences": [
+                "__ServiceName__.Api"
+              ],
+              "files": [
+                {
+                  "name": "__ServiceName__.Api.Tests.csproj",
+                  "type": "project",
+                  "description": "Archivo de proyecto de pruebas del API"
+                },
+                {
+                  "name": "HealthEndpointTests.cs",
+                  "type": "test",
+                  "description": "Pruebas del endpoint de health"
+                }
+              ]
+            },
+            "__ServiceName__.Application.Tests": {
+              "description": "Pruebas unitarias de Application",
+              "type": "project",
+              "framework": "Microsoft.NET.Sdk",
+              "dependencies": [
+                "Microsoft.NET.Test.Sdk",
+                "xunit", 
+                "xunit.runner.visualstudio",
+                "coverlet.collector",
+                "FluentAssertions",
+                "NSubstitute"
+              ],
+              "projectReferences": [
+                "__ServiceName__.Application"
+              ],
+              "files": [
+                {
+                  "name": "__ServiceName__.Application.Tests.csproj",
+                  "type": "project",
+                  "description": "Archivo de proyecto de pruebas de Application"
+                },
+                {
+                  "name": "CreateSampleHandlerTests.cs",
+                  "type": "test",
+                  "description": "Pruebas del handler CreateSample"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "fileTemplates": {
+    "csproj": {
+      "api": {
+        "sdk": "Microsoft.NET.Sdk.Web",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Mediator.SourceGenerator",
+          "Serilog.AspNetCore",
+          "Swashbuckle.AspNetCore"
+        ]
+      },
+      "application": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0", 
+        "packages": [
+          "Mediator.Abstractions",
+          "FluentValidation"
+        ]
+      },
+      "domain": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": []
+      },      "infrastructure": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Microsoft.EntityFrameworkCore",
+          "Microsoft.EntityFrameworkCore.SqlServer", 
+          "Microsoft.EntityFrameworkCore.Design",
+          "Dapper",
+          "Microsoft.Data.SqlClient"
+        ]
+      },
+      "test": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Microsoft.NET.Test.Sdk",
+          "xunit",
+          "xunit.runner.visualstudio",
+          "coverlet.collector"
+        ]
+      }
+    }
+  },
+  "postActions": [
+    {
+      "name": "CreateSolution",
+      "description": "Crear archivo de solución y agregar proyectos",
+      "command": "dotnet new sln -n __ServiceName__",
+      "followUp": [
+        "dotnet sln add src/__ServiceName__/__ServiceName__.Api/__ServiceName__.Api.csproj",
+        "dotnet sln add src/__ServiceName__/__ServiceName__.Application/__ServiceName__.Application.csproj",
+        "dotnet sln add src/__ServiceName__/__ServiceName__.Domain/__ServiceName__.Domain.csproj",
+        {
+          "condition": "UseEfCore",
+          "command": "dotnet sln add src/__ServiceName__/__ServiceName__.Infrastructure/__ServiceName__.Infrastructure.csproj"
+        },
+        {
+          "condition": "AddTests", 
+          "command": "dotnet sln add tests/__ServiceName__.Api.Tests/__ServiceName__.Api.Tests.csproj"
+        },
+        {
+          "condition": "AddTests",
+          "command": "dotnet sln add tests/__ServiceName__.Application.Tests/__ServiceName__.Application.Tests.csproj"
+        }
+      ]
+    }
+  ],
+  "instructions": {
+    "setup": [
+      "1. Instalar el template: dotnet new install ./",
+      "2. Crear nuevo proyecto: dotnet new ms-svc -n <NombreServicio> -p:RootNamespace=<MiEmpresa.MiServicio>",
+      "3. Restaurar dependencias: dotnet restore",
+      "4. Compilar: dotnet build",
+      "5. Ejecutar: dotnet run --project src/<NombreServicio>/<NombreServicio>.Api"
+    ],
+    "development": [
+      "- Usar docker-compose up para desarrollo con hot-reload",
+      "- Swagger disponible en /swagger",
+      "- Health check en /health",
+      "- Logs en carpeta logs/"
+    ]
+  }
+}

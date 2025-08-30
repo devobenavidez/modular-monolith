@@ -1,0 +1,142 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+    <WarningsNotAsErrors />
+    <LangVersion>12</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;NU1605</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Company>__RootNamespace__</Company>
+    <Product>__ApplicationName__</Product>
+    <Copyright>Copyright © $(Company) $([System.DateTime]::Now.Year)</Copyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <Optimize>true</Optimize>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- Common package versions -->
+  <PropertyGroup>
+    <!-- Core Framework -->
+    <MediatorVersion>12.2.0</MediatorVersion>
+    <FluentValidationVersion>11.4.0</FluentValidationVersion>
+    <EntityFrameworkVersion>8.0.8</EntityFrameworkVersion>
+    
+    <!-- Database -->
+    <NpgsqlVersion>8.0.8</NpgsqlVersion>
+    <DapperVersion>2.1.24</DapperVersion>
+    
+    <!-- Logging & Monitoring -->
+    <SerilogVersion>8.0.0</SerilogVersion>
+    <SerilogSinksConsoleVersion>5.0.1</SerilogSinksConsoleVersion>
+    <SerilogSinksFileVersion>5.0.0</SerilogSinksFileVersion>
+    <OpenTelemetryVersion>1.6.0</OpenTelemetryVersion>
+    <PrometheusVersion>8.2.1</PrometheusVersion>
+    
+    <!-- Health Checks -->
+    <HealthChecksVersion>8.0.2</HealthChecksVersion>
+    <HealthChecksRedisVersion>8.0.1</HealthChecksRedisVersion>
+    
+    <!-- Testing -->
+    <XUnitVersion>2.4.2</XUnitVersion>
+    <XUnitRunnerVersion>2.4.5</XUnitRunnerVersion>
+    <FluentAssertionsVersion>6.12.0</FluentAssertionsVersion>
+    <MoqVersion>4.20.69</MoqVersion>
+    <TestcontainersVersion>3.5.0</TestcontainersVersion>
+    <CoverletVersion>6.0.0</CoverletVersion>
+    <MicrosoftTestSdkVersion>17.6.0</MicrosoftTestSdkVersion>
+    
+    <!-- Web & API -->
+    <SwashbuckleVersion>6.5.0</SwashbuckleVersion>
+    <MicrosoftAspNetCoreOpenApiVersion>8.0.0</MicrosoftAspNetCoreOpenApiVersion>
+    <MicrosoftAspNetCoreMvcCoreVersion>2.2.5</MicrosoftAspNetCoreMvcCoreVersion>
+    
+    <!-- Code Analysis -->
+    <MicrosoftCodeAnalysisAnalyzersVersion>3.3.4</MicrosoftCodeAnalysisAnalyzersVersion>
+    <MicrosoftCodeAnalysisNetAnalyzersVersion>8.0.0</MicrosoftCodeAnalysisNetAnalyzersVersion>
+  </PropertyGroup>
+
+  <!-- Common package references for all projects -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+  </ItemGroup>
+
+  <!-- Core Framework packages -->
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="$(MediatorVersion)" />
+    <PackageReference Include="FluentValidation" Version="$(FluentValidationVersion)" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="$(FluentValidationVersion)" />
+  </ItemGroup>
+
+  <!-- Database packages -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="$(EntityFrameworkVersion)" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(NpgsqlVersion)" />
+    <PackageReference Include="Dapper" Version="$(DapperVersion)" />
+  </ItemGroup>
+
+  <!-- Logging & Monitoring packages -->
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="$(SerilogVersion)" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="$(SerilogSinksConsoleVersion)" />
+    <PackageReference Include="Serilog.Sinks.File" Version="$(SerilogSinksFileVersion)" />
+    <PackageReference Include="prometheus-net.AspNetCore" Version="$(PrometheusVersion)" />
+  </ItemGroup>
+
+  <!-- Health Checks packages -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI" Version="$(HealthChecksVersion)" />
+    <PackageReference Include="AspNetCore.HealthChecks.Npgsql" Version="$(HealthChecksVersion)" />
+    <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="$(HealthChecksRedisVersion)" />
+  </ItemGroup>
+
+  <!-- Web & API packages -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="$(MicrosoftAspNetCoreOpenApiVersion)" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="$(SwashbuckleVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="$(MicrosoftAspNetCoreMvcCoreVersion)" />
+  </ItemGroup>
+
+  <!-- Testing packages - Only for test projects -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="$(MicrosoftTestSdkVersion)" />
+    <PackageReference Include="xunit" Version="$(XUnitVersion)" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="$(XUnitRunnerVersion)">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="$(CoverletVersion)">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="$(TestcontainersVersion)" />
+    <PackageReference Include="FluentAssertions" Version="$(FluentAssertionsVersion)" />
+    <PackageReference Include="Moq" Version="$(MoqVersion)" />
+  </ItemGroup>
+
+  <!-- Analyzer packages -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="$(MicrosoftCodeAnalysisAnalyzersVersion)" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="$(MicrosoftCodeAnalysisNetAnalyzersVersion)" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

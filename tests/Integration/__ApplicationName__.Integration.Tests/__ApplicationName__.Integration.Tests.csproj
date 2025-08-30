@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>__RootNamespace__.Integration.Tests</RootNamespace>
+    <AssemblyName>__ApplicationName__.Integration.Tests</AssemblyName>
+  </PropertyGroup>
+  <!-- All packages are now centralized in Directory.Build.props -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\__ApplicationName__.Api\__ApplicationName__.Api.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Users\__ApplicationName__.Users.Infrastructure\__ApplicationName__.Users.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

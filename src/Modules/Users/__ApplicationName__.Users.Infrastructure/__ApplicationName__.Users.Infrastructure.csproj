@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>__RootNamespace__.Users.Infrastructure</RootNamespace>
+    <AssemblyName>__ApplicationName__.Users.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Database packages are now centralized in Directory.Build.props -->  <ItemGroup>
+    <ProjectReference Include="..\__ApplicationName__.Users.Domain\__ApplicationName__.Users.Domain.csproj" />
+    <ProjectReference Include="..\..\..\__ApplicationName__.SharedKernel\__ApplicationName__.SharedKernel.csproj" />
+  </ItemGroup>
+
+</Project>

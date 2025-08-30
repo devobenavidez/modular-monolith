@@ -1,0 +1,1082 @@
+{
+  "templateInfo": {
+    "name": "Celuweb Modular Monolith Template",
+    "version": "2.0.0",
+    "description": "Template para monolito modular con Clean Architecture, CQRS, Mediator 3.0, PostgreSQL, Prometheus - Sin nomenclatura 'Modules'",
+    "author": "Oscar Mauricio Benavidez Suarez",
+    "technologies": [
+      ".NET 8.0",
+      "ASP.NET Core Web API",
+      "Mediator.SourceGenerator 3.0",
+      "Entity Framework Core",
+      "Dapper",
+      "FluentValidation",
+      "Serilog",
+      "PostgreSQL",
+      "Prometheus",
+      "OpenTelemetry",
+      "Docker",
+      "xUnit"
+    ]
+  },
+  "parameters": {    
+    "ApplicationName": {
+      "type": "string",
+      "description": "Nombre de la aplicación monolítica",
+      "defaultValue": "ApplicationName"
+    },
+    "RootNamespace": {
+      "type": "string",
+      "description": "Namespace raíz (por ejemplo: MiEmpresa.MiApp)"
+    },
+    "AddDocker": {
+      "type": "boolean",
+      "description": "Incluir Dockerfile y docker-compose",
+      "defaultValue": true
+    },
+    "AddSampleModule": {
+      "type": "boolean",
+      "description": "Incluir módulo de ejemplo (Users)",
+      "defaultValue": true
+    }
+  },
+  "structure": {
+    "root": {
+      "files": [
+        {
+          "name": ".editorconfig",
+          "type": "config",
+          "description": "Configuración de formato de código"
+        },
+        {
+          "name": ".gitignore",
+          "type": "config",
+          "description": "Archivos ignorados por Git"
+        },
+        {
+          "name": "Directory.Build.props",
+          "type": "msbuild",
+          "description": "Propiedades comunes de MSBuild"
+        },
+        {
+          "name": "Directory.Build.targets",
+          "type": "msbuild",
+          "description": "Targets comunes de MSBuild"
+        },
+        {
+          "name": "global.json",
+          "type": "config",
+          "description": "Configuración del SDK de .NET"
+        },
+        {
+          "name": "README.md",
+          "type": "documentation",
+          "description": "Documentación principal del proyecto"
+        },
+        {
+          "name": "GETTING-STARTED.md",
+          "type": "documentation",
+          "description": "Guía de inicio rápido"
+        },
+        {
+          "name": "MODULE-CREATION.md",
+          "type": "documentation",
+          "description": "Guía para crear nuevos módulos"
+        },
+        {
+          "name": "__ApplicationName__.sln",
+          "type": "solution",
+          "description": "Archivo de solución principal"
+        },
+        {
+          "name": "docker-compose.yml",
+          "type": "docker",
+          "description": "Configuración Docker para producción",
+          "condition": "AddDocker"
+        },
+        {
+          "name": "docker-compose.override.yml",
+          "type": "docker",
+          "description": "Configuración Docker para desarrollo",
+          "condition": "AddDocker"
+        }
+      ],
+      "directories": {
+        ".github": {
+          "description": "Configuración de GitHub Actions",
+          "directories": {
+            "workflows": {
+              "files": [
+                {
+                  "name": "ci.yml",
+                  "type": "cicd",
+                  "description": "Pipeline de CI/CD"
+                }
+              ]
+            }
+          }
+        },
+        "docker": {
+          "description": "Archivos relacionados con Docker",
+          "condition": "AddDocker",
+          "files": [
+            {
+              "name": "Dockerfile",
+              "type": "docker",
+              "description": "Configuración de imagen Docker"
+            },
+            {
+              "name": ".dockerignore",
+              "type": "docker",
+              "description": "Archivos ignorados por Docker"
+            }
+          ]
+        },
+        "scripts": {
+          "description": "Scripts para administración del proyecto",
+          "files": [
+            {
+              "name": "create-module.ps1",
+              "type": "script",
+              "description": "Script PowerShell para crear nuevos módulos"
+            },
+            {
+              "name": "create-module.sh",
+              "type": "script",
+              "description": "Script Bash para crear nuevos módulos"
+            },
+            {
+              "name": "smart-create-module.ps1",
+              "type": "script",
+              "description": "Script inteligente para crear módulos (recomendado)"
+            },
+            {
+              "name": "configure-module.ps1",
+              "type": "script",
+              "description": "Script para configurar módulos en Program.cs"
+            }
+          ]
+        },
+        "src": {
+          "description": "Código fuente del monolito",
+          "directories": {
+            "__ApplicationName__.Api": {
+              "description": "API Gateway principal del monolito",
+              "type": "project",
+              "framework": "Microsoft.NET.Sdk.Web",
+              "dependencies": [
+                "Microsoft.AspNetCore.OpenApi",
+                "Swashbuckle.AspNetCore",
+                "Serilog.AspNetCore",
+                "Serilog.Sinks.Console",
+                "Serilog.Sinks.File",
+                "OpenTelemetry.AspNetCore",
+                "OpenTelemetry.Extensions.Hosting",
+                "OpenTelemetry.Exporter.Prometheus.AspNetCore",
+                "prometheus-net.AspNetCore"
+              ],
+              "projectReferences": [
+                "__ApplicationName__.SharedKernel"
+              ],
+              "files": [
+                {
+                  "name": "__ApplicationName__.Api.csproj",
+                  "type": "project",
+                  "description": "Archivo de proyecto del API Gateway"
+                },
+                {
+                  "name": "Program.cs",
+                  "type": "code",
+                  "description": "Punto de entrada de la aplicación"
+                },
+                {
+                  "name": "appsettings.json",
+                  "type": "config",
+                  "description": "Configuración de la aplicación"
+                },
+                {
+                  "name": "appsettings.Development.json",
+                  "type": "config",
+                  "description": "Configuración para desarrollo"
+                }
+              ],
+              "directories": {
+                "Configuration": {
+                  "description": "Configuración del API Gateway",
+                  "files": [
+                    {
+                      "name": "ServiceCollectionExtensions.cs",
+                      "type": "code",
+                      "description": "Extensiones para configurar servicios"
+                    },
+                    {
+                      "name": "LoggingConfiguration.cs",
+                      "type": "code",
+                      "description": "Configuración de logging"
+                    },
+                    {
+                      "name": "TelemetryConfiguration.cs",
+                      "type": "code",
+                      "description": "Configuración de telemetría y Prometheus"
+                    }
+                  ]
+                },
+                "Controllers": {
+                  "description": "Controladores base y de sistema",
+                  "files": [
+                    {
+                      "name": "HealthController.cs",
+                      "type": "code",
+                      "description": "Controlador de health checks"
+                    },
+                    {
+                      "name": "MetricsController.cs",
+                      "type": "code",
+                      "description": "Controlador de métricas"
+                    }
+                  ]
+                },
+                "Middleware": {
+                  "description": "Middleware personalizado",
+                  "files": [
+                    {
+                      "name": "ExceptionHandlingMiddleware.cs",
+                      "type": "code",
+                      "description": "Middleware para manejo de excepciones"
+                    },
+                    {
+                      "name": "RequestLoggingMiddleware.cs",
+                      "type": "code",
+                      "description": "Middleware para logging de requests"
+                    }
+                  ]
+                },
+                "Properties": {
+                  "description": "Propiedades del proyecto",
+                  "files": [
+                    {
+                      "name": "launchSettings.json",
+                      "type": "config",
+                      "description": "Configuración de ejecución"
+                    }
+                  ]
+                }
+              }
+            },
+            "__ApplicationName__.SharedKernel": {
+              "description": "Componentes compartidos entre módulos",
+              "type": "project",
+              "framework": "Microsoft.NET.Sdk",
+              "dependencies": [
+                "Mediator.Abstractions",
+                "FluentValidation",
+                "Microsoft.EntityFrameworkCore",
+                "Microsoft.EntityFrameworkCore.PostgreSQL",
+                "Dapper",
+                "Npgsql",
+                "Serilog",
+                "Microsoft.Extensions.Logging.Abstractions",
+                "Microsoft.Extensions.DependencyInjection.Abstractions"
+              ],
+              "files": [
+                {
+                  "name": "__ApplicationName__.SharedKernel.csproj",
+                  "type": "project",
+                  "description": "Archivo de proyecto compartido"
+                },
+                {
+                  "name": "AssemblyMarker.cs",
+                  "type": "code",
+                  "description": "Marcador del assembly"
+                }
+              ],
+              "directories": {
+                "Abstractions": {
+                  "description": "Interfaces y abstracciones compartidas",
+                  "files": [
+                    {
+                      "name": "IDateTime.cs",
+                      "type": "code",
+                      "description": "Abstracción para servicios de fecha/hora"
+                    },
+                    {
+                      "name": "IUnitOfWork.cs",
+                      "type": "code",
+                      "description": "Interface para Unit of Work"
+                    },
+                    {
+                      "name": "IRepository.cs",
+                      "type": "code",
+                      "description": "Interface genérica para repositorios de escritura"
+                    },
+                    {
+                      "name": "IReadOnlyRepository.cs",
+                      "type": "code",
+                      "description": "Interface genérica para repositorios de lectura"
+                    },
+                    {
+                      "name": "IDomainEvent.cs",
+                      "type": "code",
+                      "description": "Interface para eventos de dominio"
+                    },
+                    {
+                      "name": "IIntegrationEvent.cs",
+                      "type": "code",
+                      "description": "Interface para eventos de integración"
+                    }
+                  ]
+                },
+                "Behaviors": {
+                  "description": "Comportamientos de Mediator compartidos",
+                  "files": [
+                    {
+                      "name": "ValidationBehavior.cs",
+                      "type": "code",
+                      "description": "Pipeline de validación con FluentValidation"
+                    },
+                    {
+                      "name": "LoggingBehavior.cs",
+                      "type": "code",
+                      "description": "Pipeline de logging"
+                    },
+                    {
+                      "name": "UnitOfWorkBehavior.cs",
+                      "type": "code",
+                      "description": "Pipeline de Unit of Work"
+                    }
+                  ]
+                },
+                "Common": {
+                  "description": "Clases comunes y utilidades",
+                  "files": [
+                    {
+                      "name": "Result.cs",
+                      "type": "code",
+                      "description": "Clase para manejo de resultados"
+                    },
+                    {
+                      "name": "Error.cs",
+                      "type": "code",
+                      "description": "Clase para manejo de errores"
+                    },
+                    {
+                      "name": "BaseEntity.cs",
+                      "type": "code",
+                      "description": "Entidad base con propiedades comunes"
+                    },
+                    {
+                      "name": "AggregateRoot.cs",
+                      "type": "code",
+                      "description": "Clase base para agregados"
+                    }
+                  ]
+                },
+                "Data": {
+                  "description": "Configuración de acceso a datos",
+                  "files": [
+                    {
+                      "name": "AppDbContext.cs",
+                      "type": "code",
+                      "description": "Contexto principal de Entity Framework"
+                    },
+                    {
+                      "name": "UnitOfWork.cs",
+                      "type": "code",
+                      "description": "Implementación de Unit of Work"
+                    },
+                    {
+                      "name": "DapperConnectionFactory.cs",
+                      "type": "code",
+                      "description": "Factory para conexiones de Dapper"
+                    }
+                  ]
+                },
+                "Events": {
+                  "description": "Sistema de eventos",
+                  "files": [
+                    {
+                      "name": "DomainEventDispatcher.cs",
+                      "type": "code",
+                      "description": "Dispatcher para eventos de dominio"
+                    },
+                    {
+                      "name": "IntegrationEventHandler.cs",
+                      "type": "code",
+                      "description": "Handler base para eventos de integración"
+                    }
+                  ]
+                },
+                "Extensions": {
+                  "description": "Métodos de extensión compartidos",
+                  "files": [
+                    {
+                      "name": "ServiceCollectionExtensions.cs",
+                      "type": "code",
+                      "description": "Extensiones para configurar servicios compartidos"
+                    },
+                    {
+                      "name": "MediatorExtensions.cs",
+                      "type": "code",
+                      "description": "Extensiones para Mediator"
+                    }
+                  ]
+                },
+                "Services": {
+                  "description": "Servicios compartidos",
+                  "files": [
+                    {
+                      "name": "SystemDateTime.cs",
+                      "type": "code",
+                      "description": "Implementación de IDateTime"
+                    }
+                  ]
+                }
+              }
+            },
+            "Modules": {
+              "description": "Módulos del monolito",
+              "directories": {
+                "Users": {
+                  "description": "Módulo de gestión de usuarios (ejemplo)",
+                  "condition": "AddSampleModule",
+                  "directories": {
+                    "Users.Api": {
+                      "description": "Controllers y configuración del módulo Users",
+                      "type": "project",
+                      "framework": "Microsoft.NET.Sdk",
+                      "dependencies": [
+                        "Microsoft.AspNetCore.Mvc.Core"
+                      ],
+                      "projectReferences": [
+                        "Users.Application",
+                        "__ApplicationName__.SharedKernel"
+                      ],
+                      "files": [
+                        {
+                          "name": "Users.Api.csproj",
+                          "type": "project",
+                          "description": "Archivo de proyecto del API de Users"
+                        },
+                        {
+                          "name": "ModuleConfiguration.cs",
+                          "type": "code",
+                          "description": "Configuración del módulo"
+                        }
+                      ],
+                      "directories": {
+                        "Controllers": {
+                          "description": "Controladores del módulo Users",
+                          "files": [
+                            {
+                              "name": "UsersController.cs",
+                              "type": "code",
+                              "description": "Controlador CRUD de usuarios"
+                            }
+                          ]
+                        },
+                        "Extensions": {
+                          "description": "Extensiones de configuración",
+                          "files": [
+                            {
+                              "name": "DependencyInjection.cs",
+                              "type": "code",
+                              "description": "Configuración de DI del módulo"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "Users.Application": {
+                      "description": "Casos de uso del módulo Users",
+                      "type": "project",
+                      "framework": "Microsoft.NET.Sdk",
+                      "dependencies": [
+                        "Mediator.Abstractions",
+                        "FluentValidation"
+                      ],
+                      "projectReferences": [
+                        "Users.Domain",
+                        "__ApplicationName__.SharedKernel"
+                      ],
+                      "files": [
+                        {
+                          "name": "Users.Application.csproj",
+                          "type": "project",
+                          "description": "Archivo de proyecto de Application"
+                        },
+                        {
+                          "name": "AssemblyMarker.cs",
+                          "type": "code",
+                          "description": "Marcador del assembly"
+                        }
+                      ],
+                      "directories": {
+                        "Commands": {
+                          "description": "Comandos CQRS",
+                          "directories": {
+                            "CreateUser": {
+                              "files": [
+                                {
+                                  "name": "CreateUserCommand.cs",
+                                  "type": "code",
+                                  "description": "Comando para crear usuarios"
+                                },
+                                {
+                                  "name": "CreateUserHandler.cs",
+                                  "type": "code",
+                                  "description": "Handler para crear usuarios"
+                                },
+                                {
+                                  "name": "CreateUserValidator.cs",
+                                  "type": "code",
+                                  "description": "Validador para CreateUserCommand"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "Queries": {
+                          "description": "Consultas CQRS",
+                          "directories": {
+                            "GetUsers": {
+                              "files": [
+                                {
+                                  "name": "GetUsersQuery.cs",
+                                  "type": "code",
+                                  "description": "Query para obtener usuarios"
+                                },
+                                {
+                                  "name": "GetUsersHandler.cs",
+                                  "type": "code",
+                                  "description": "Handler para obtener usuarios"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "Contracts": {
+                          "description": "DTOs y contratos",
+                          "files": [
+                            {
+                              "name": "UserDto.cs",
+                              "type": "code",
+                              "description": "DTO de usuarios"
+                            }
+                          ]
+                        },
+                        "Abstractions": {
+                          "description": "Interfaces específicas del módulo",
+                          "files": [
+                            {
+                              "name": "IUserRepository.cs",
+                              "type": "code",
+                              "description": "Interface del repositorio de usuarios"
+                            },
+                            {
+                              "name": "IUserReadOnlyRepository.cs",
+                              "type": "code",
+                              "description": "Interface para consultas de usuarios"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "Users.Domain": {
+                      "description": "Dominio del módulo Users",
+                      "type": "project",
+                      "framework": "Microsoft.NET.Sdk",
+                      "projectReferences": [
+                        "__ApplicationName__.SharedKernel"
+                      ],
+                      "files": [
+                        {
+                          "name": "Users.Domain.csproj",
+                          "type": "project",
+                          "description": "Archivo de proyecto de Domain"
+                        }
+                      ],
+                      "directories": {
+                        "Entities": {
+                          "description": "Entidades del dominio",
+                          "files": [
+                            {
+                              "name": "User.cs",
+                              "type": "code",
+                              "description": "Entidad User"
+                            }
+                          ]
+                        },
+                        "ValueObjects": {
+                          "description": "Value Objects",
+                          "files": [
+                            {
+                              "name": "Email.cs",
+                              "type": "code",
+                              "description": "Value Object Email"
+                            }
+                          ]
+                        },
+                        "Events": {
+                          "description": "Eventos de dominio",
+                          "files": [
+                            {
+                              "name": "UserCreatedEvent.cs",
+                              "type": "code",
+                              "description": "Evento de usuario creado"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "Users.Infrastructure": {
+                      "description": "Infraestructura del módulo Users",
+                      "type": "project",
+                      "framework": "Microsoft.NET.Sdk",
+                      "dependencies": [
+                        "Microsoft.EntityFrameworkCore",
+                        "Microsoft.EntityFrameworkCore.PostgreSQL",
+                        "Dapper",
+                        "Npgsql"
+                      ],
+                      "projectReferences": [
+                        "Users.Application",
+                        "Users.Domain",
+                        "__ApplicationName__.SharedKernel"
+                      ],
+                      "files": [
+                        {
+                          "name": "Users.Infrastructure.csproj",
+                          "type": "project",
+                          "description": "Archivo de proyecto de Infrastructure"
+                        }
+                      ],
+                      "directories": {
+                        "Persistence": {
+                          "description": "Configuración de persistencia",
+                          "directories": {
+                            "Configurations": {
+                              "description": "Configuraciones de EF Core",
+                              "files": [
+                                {
+                                  "name": "UserConfiguration.cs",
+                                  "type": "code",
+                                  "description": "Configuración de la entidad User"
+                                }
+                              ]
+                            },
+                            "Repositories": {
+                              "description": "Implementaciones de repositorios",
+                              "files": [
+                                {
+                                  "name": "UserRepository.cs",
+                                  "type": "code",
+                                  "description": "Repositorio de usuarios para escritura"
+                                },
+                                {
+                                  "name": "UserReadOnlyRepository.cs",
+                                  "type": "code",
+                                  "description": "Repositorio de usuarios para consultas"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "Extensions": {
+                          "description": "Extensiones de configuración",
+                          "files": [
+                            {
+                              "name": "DependencyInjection.cs",
+                              "type": "code",
+                              "description": "Configuración de DI de Infrastructure"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tests": {
+          "description": "Proyectos de pruebas",
+          "directories": {
+            "Unit": {
+              "description": "Pruebas unitarias",
+              "directories": {
+                "Users.Application.Tests": {
+                  "description": "Pruebas unitarias del módulo Users",
+                  "condition": "AddSampleModule",
+                  "type": "project",
+                  "framework": "Microsoft.NET.Sdk",
+                  "dependencies": [
+                    "Microsoft.NET.Test.Sdk",
+                    "xunit",
+                    "xunit.runner.visualstudio",
+                    "coverlet.collector",
+                    "FluentAssertions",
+                    "NSubstitute"
+                  ],
+                  "projectReferences": [
+                    "Users.Application"
+                  ],
+                  "files": [
+                    {
+                      "name": "Users.Application.Tests.csproj",
+                      "type": "project",
+                      "description": "Archivo de proyecto de pruebas"
+                    },
+                    {
+                      "name": "CreateUserHandlerTests.cs",
+                      "type": "test",
+                      "description": "Pruebas del handler CreateUser"
+                    }
+                  ]
+                }
+              }
+            },
+            "Integration": {
+              "description": "Pruebas de integración",
+              "directories": {
+                "__ApplicationName__.Integration.Tests": {
+                  "description": "Pruebas de integración del monolito",
+                  "type": "project",
+                  "framework": "Microsoft.NET.Sdk",
+                  "dependencies": [
+                    "Microsoft.NET.Test.Sdk",
+                    "xunit",
+                    "xunit.runner.visualstudio",
+                    "coverlet.collector",
+                    "Microsoft.AspNetCore.Mvc.Testing",
+                    "Testcontainers.PostgreSql"
+                  ],
+                  "projectReferences": [
+                    "__ApplicationName__.Api"
+                  ],
+                  "files": [
+                    {
+                      "name": "__ApplicationName__.Integration.Tests.csproj",
+                      "type": "project",
+                      "description": "Archivo de proyecto de pruebas de integración"
+                    },
+                    {
+                      "name": "HealthEndpointTests.cs",
+                      "type": "test",
+                      "description": "Pruebas del endpoint de health"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "moduleTemplate": {
+    "description": "Template para crear nuevos módulos",
+    "structure": {
+      "__ModuleName__.Api": {
+        "description": "Controllers y configuración del módulo",
+        "type": "project",
+        "framework": "Microsoft.NET.Sdk",
+        "dependencies": [
+          "Microsoft.AspNetCore.Mvc.Core"
+        ],
+        "projectReferences": [
+          "__ModuleName__.Application",
+          "__ApplicationName__.SharedKernel"
+        ],
+        "files": [
+          {
+            "name": "__ModuleName__.Api.csproj",
+            "type": "project",
+            "description": "Archivo de proyecto del API"
+          },
+          {
+            "name": "ModuleConfiguration.cs",
+            "type": "code",
+            "description": "Configuración del módulo"
+          }
+        ],
+        "directories": {
+          "Controllers": {
+            "description": "Controladores del módulo",
+            "files": [
+              {
+                "name": "__ModuleName__Controller.cs",
+                "type": "code",
+                "description": "Controlador principal del módulo"
+              }
+            ]
+          },
+          "Extensions": {
+            "description": "Extensiones de configuración",
+            "files": [
+              {
+                "name": "DependencyInjection.cs",
+                "type": "code",
+                "description": "Configuración de DI del módulo"
+              }
+            ]
+          }
+        }
+      },
+      "__ModuleName__.Application": {
+        "description": "Casos de uso del módulo",
+        "type": "project",
+        "framework": "Microsoft.NET.Sdk",
+        "dependencies": [
+          "Mediator.Abstractions",
+          "FluentValidation"
+        ],
+        "projectReferences": [
+          "__ModuleName__.Domain",
+          "__ApplicationName__.SharedKernel"
+        ],
+        "files": [
+          {
+            "name": "__ModuleName__.Application.csproj",
+            "type": "project",
+            "description": "Archivo de proyecto de Application"
+          },
+          {
+            "name": "AssemblyMarker.cs",
+            "type": "code",
+            "description": "Marcador del assembly"
+          }
+        ],
+        "directories": {
+          "Commands": {
+            "description": "Comandos CQRS",
+            "directories": {}
+          },
+          "Queries": {
+            "description": "Consultas CQRS",
+            "directories": {}
+          },
+          "Contracts": {
+            "description": "DTOs y contratos",
+            "files": []
+          },
+          "Abstractions": {
+            "description": "Interfaces específicas del módulo",
+            "files": []
+          }
+        }
+      },
+      "__ModuleName__.Domain": {
+        "description": "Dominio del módulo",
+        "type": "project",
+        "framework": "Microsoft.NET.Sdk",
+        "projectReferences": [
+          "__ApplicationName__.SharedKernel"
+        ],
+        "files": [
+          {
+            "name": "__ModuleName__.Domain.csproj",
+            "type": "project",
+            "description": "Archivo de proyecto de Domain"
+          }
+        ],
+        "directories": {
+          "Entities": {
+            "description": "Entidades del dominio",
+            "files": []
+          },
+          "ValueObjects": {
+            "description": "Value Objects",
+            "files": []
+          },
+          "Events": {
+            "description": "Eventos de dominio",
+            "files": []
+          }
+        }
+      },
+      "__ModuleName__.Infrastructure": {
+        "description": "Infraestructura del módulo",
+        "type": "project",
+        "framework": "Microsoft.NET.Sdk",
+        "dependencies": [
+          "Microsoft.EntityFrameworkCore",
+          "Microsoft.EntityFrameworkCore.PostgreSQL",
+          "Dapper",
+          "Npgsql"
+        ],
+        "projectReferences": [
+          "__ModuleName__.Application",
+          "__ModuleName__.Domain",
+          "__ApplicationName__.SharedKernel"
+        ],
+        "files": [
+          {
+            "name": "__ModuleName__.Infrastructure.csproj",
+            "type": "project",
+            "description": "Archivo de proyecto de Infrastructure"
+          }
+        ],
+        "directories": {
+          "Persistence": {
+            "description": "Configuración de persistencia",
+            "directories": {
+              "Configurations": {
+                "description": "Configuraciones de EF Core",
+                "files": []
+              },
+              "Repositories": {
+                "description": "Implementaciones de repositorios",
+                "files": []
+              }
+            }
+          },
+          "Extensions": {
+            "description": "Extensiones de configuración",
+            "files": [
+              {
+                "name": "DependencyInjection.cs",
+                "type": "code",
+                "description": "Configuración de DI de Infrastructure"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "fileTemplates": {
+    "csproj": {
+      "api": {
+        "sdk": "Microsoft.NET.Sdk.Web",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Microsoft.AspNetCore.OpenApi",
+          "Swashbuckle.AspNetCore",
+          "Serilog.AspNetCore",
+          "OpenTelemetry.AspNetCore",
+          "prometheus-net.AspNetCore"
+        ]
+      },
+      "shared": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Mediator.Abstractions",
+          "FluentValidation",
+          "Microsoft.EntityFrameworkCore.PostgreSQL",
+          "Dapper",
+          "Npgsql",
+          "Serilog"
+        ]
+      },
+      "moduleApi": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Microsoft.AspNetCore.Mvc.Core"
+        ]
+      },
+      "application": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Mediator.Abstractions",
+          "FluentValidation"
+        ]
+      },
+      "domain": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": []
+      },
+      "infrastructure": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Microsoft.EntityFrameworkCore.PostgreSQL",
+          "Dapper",
+          "Npgsql"
+        ]
+      },
+      "test": {
+        "sdk": "Microsoft.NET.Sdk",
+        "targetFramework": "net8.0",
+        "packages": [
+          "Microsoft.NET.Test.Sdk",
+          "xunit",
+          "xunit.runner.visualstudio",
+          "coverlet.collector"
+        ]
+      }
+    }
+  },
+  "postActions": [
+    {
+      "name": "CreateSolution",
+      "description": "Crear archivo de solución y agregar proyectos",
+      "command": "dotnet new sln -n __ApplicationName__",
+      "followUp": [
+        "dotnet sln add src/__ApplicationName__.Api/__ApplicationName__.Api.csproj",
+        "dotnet sln add src/__ApplicationName__.SharedKernel/__ApplicationName__.SharedKernel.csproj",
+        {
+          "condition": "AddSampleModule",
+          "commands": [
+            "dotnet sln add src/Modules/Users/Users.Api/Users.Api.csproj",
+            "dotnet sln add src/Modules/Users/Users.Application/Users.Application.csproj",
+            "dotnet sln add src/Modules/Users/Users.Domain/Users.Domain.csproj",
+            "dotnet sln add src/Modules/Users/Users.Infrastructure/Users.Infrastructure.csproj",
+            "dotnet sln add tests/Unit/Users.Application.Tests/Users.Application.Tests.csproj"
+          ]
+        },
+        "dotnet sln add tests/Integration/__ApplicationName__.Integration.Tests/__ApplicationName__.Integration.Tests.csproj"
+      ]
+    },
+    {
+      "name": "RestorePackages",
+      "description": "Restaurar paquetes NuGet",
+      "command": "dotnet restore"
+    }
+  ],
+  "commands": {
+    "createModule": {
+      "description": "Crear un nuevo módulo",
+      "powershell": "scripts/smart-create-module.ps1",
+      "bash": "scripts/create-module.sh",
+      "parameters": [
+        {
+          "name": "ModuleName",
+          "type": "string",
+          "required": true,
+          "description": "Nombre del módulo a crear"
+        }
+      ]
+    }
+  },
+  "instructions": {
+    "setup": [
+      "1. Instalar el template: dotnet new install ./",
+      "2. Crear nuevo proyecto: dotnet new modular-monolith -n <NombreProyecto> -p:RootNamespace=<MiEmpresa.MiApp>",
+      "3. Restaurar dependencias: dotnet restore",
+      "4. Configurar base de datos PostgreSQL en appsettings.json",
+      "5. Ejecutar migraciones: dotnet ef database update --project src/<NombreProyecto>.SharedKernel",
+      "6. Compilar: dotnet build",
+      "7. Ejecutar: dotnet run --project src/<NombreProyecto>.Api"
+    ],
+    "development": [
+      "- Usar docker-compose up para desarrollo con PostgreSQL",
+      "- Swagger disponible en /swagger",
+      "- Health check en /health",
+      "- Métricas Prometheus en /metrics",
+      "- Logs en carpeta logs/",
+      "- Para crear un nuevo módulo: scripts/smart-create-module.ps1 -ModuleName NombreModulo"
+    ],
+    "moduleCreation": [
+      "1. Ejecutar: scripts/smart-create-module.ps1 -ModuleName NombreModulo",
+      "2. El script creará la estructura completa del módulo",
+      "3. Agregar las referencias al proyecto principal",
+      "4. Configurar el módulo en Program.cs",
+      "5. Crear las migraciones si es necesario"
+    ]
+  }
+}

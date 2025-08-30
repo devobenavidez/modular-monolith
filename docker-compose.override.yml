@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  app:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - Serilog__MinimumLevel__Default=Debug
+      - Serilog__WriteTo__0__Name=Console
+      - Serilog__WriteTo__1__Name=File
+      - Serilog__WriteTo__1__Args__path=logs/app-.txt
+      - Serilog__WriteTo__1__Args__rollingInterval=Day
+      - OpenTelemetry__Enabled=true
+      - OpenTelemetry__ServiceName=__ApplicationName__
+    volumes:
+      - ./src:/app/src:ro
+      - ./logs:/app/logs
+    ports:
+      - "5000:8080"
+    command: ["dotnet", "watch", "run", "--project", "src/__ApplicationName__.Api", "--urls", "http://0.0.0.0:8080"]
+
+  postgres:
+    environment:
+      - POSTGRES_DB=__ApplicationName___Development
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./scripts/development-seed.sql:/docker-entrypoint-initdb.d/99-seed.sql:ro
+
+  # Servicios adicionales para desarrollo
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: __ApplicationName__-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@__ApplicationName__.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - __ApplicationName__-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: __ApplicationName__-mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    networks:
+      - __ApplicationName__-network
+
+volumes:
+  pgadmin_data:
+    driver: local
