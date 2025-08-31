@@ -92,6 +92,11 @@
     <PackageReference Include="Dapper" Version="$(DapperVersion)" />
   </ItemGroup>
 
+  <!-- EF Tools packages - Only for Infrastructure projects -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Infrastructure'))">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="$(EntityFrameworkVersion)" PrivateAssets="all" />
+  </ItemGroup>
+
   <!-- Logging & Monitoring packages -->
   <ItemGroup>
     <PackageReference Include="Serilog.AspNetCore" Version="$(SerilogVersion)" />

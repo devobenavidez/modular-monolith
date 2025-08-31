@@ -53,6 +53,7 @@ MiECommerce/
 - ✅ **CQRS** con Mediator para comandos y consultas
 - ✅ **Unit of Work** implementado por DbContext de cada módulo
 - ✅ **EF Core** para operaciones CRUD por módulo
+- ✅ **EF Core Tools** centralizado para scaffold y migraciones
 - ✅ **Dapper** para consultas optimizadas y reportes
 - ✅ **PostgreSQL** como base de datos (conexión compartida, esquemas separados)
 - ✅ **Logging** con Serilog
@@ -60,6 +61,7 @@ MiECommerce/
 - ✅ **Docker** y docker-compose incluidos
 - ✅ **Validación** con FluentValidation
 - ✅ **Pruebas unitarias** con xUnit, FluentAssertions y NSubstitute
+- ✅ **Gestión centralizada de paquetes** con Directory.Build.props
 
 ## 🚀 Instalación y Uso
 
