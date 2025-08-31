@@ -106,7 +106,7 @@ $apiCsproj = @"
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
+    <!-- Los paquetes de ASP.NET Core se incluyen automáticamente desde Directory.Build.props -->
   </ItemGroup>
 
   <ItemGroup>
@@ -132,8 +132,7 @@ $applicationCsproj = @"
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MediatR" Version="12.2.0" />
-    <PackageReference Include="FluentValidation" Version="11.9.2" />
+    <!-- Los paquetes de MediatR y FluentValidation se incluyen automáticamente desde Directory.Build.props -->
   </ItemGroup>
   
   <ItemGroup>
@@ -179,9 +178,7 @@ $infrastructureCsproj = @"
     <AssemblyName>$ApplicationName.$ModuleName.Infrastructure</AssemblyName>
   </PropertyGroup>
     <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.8" />
-    <PackageReference Include="Dapper" Version="2.1.35" />
+    <!-- Los paquetes de EF Core y Dapper se incluyen automáticamente desde Directory.Build.props -->
   </ItemGroup>
   
   <ItemGroup>
@@ -209,18 +206,7 @@ $testCsproj = @"
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Include="xunit" Version="2.6.1" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="FluentAssertions" Version="6.12.0" />
-    <PackageReference Include="NSubstitute" Version="5.1.0" />
+    <!-- Los paquetes de testing se incluyen automáticamente desde Directory.Build.props -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Modules\$ModuleName\$ApplicationName.$ModuleName.Application\$ApplicationName.$ModuleName.Application.csproj" />
@@ -429,10 +415,10 @@ namespace $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
 
 public class ${EntityName}Repository : I${EntityName}Repository
 {
-    private readonly ${ModuleName}DbContext _context;
+    private readonly ${ModuleName}ExtendedDbContext _context;
     private readonly DbSet<${EntityClassName}> _entities;
 
-    public ${EntityName}Repository(${ModuleName}DbContext context)
+    public ${EntityName}Repository(${ModuleName}ExtendedDbContext context)
     {
         _context = context;
         _entities = context.Set<${EntityClassName}>();
@@ -588,38 +574,64 @@ public class ${EntityClassName} : BaseEntity
 
 $entity | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Entities/${EntityName}.cs" -Encoding UTF8
 
-# DbContext (generado después de definir las variables de entidad)
-$dbContext = @"
+# DbContext base en Models (será reemplazado por scaffold)
+$dbContextBase = @"
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
-using $RootNamespace.SharedKernel.Interfaces;
-using $RootNamespace.$ModuleName.Domain.Entities;
-using System.Reflection;
 
-namespace $RootNamespace.$ModuleName.Infrastructure.Persistence;
+namespace $RootNamespace.$ModuleName.Infrastructure.Models;
 
-public class ${ModuleName}DbContext : DbContext, IUnitOfWork
+/// <summary>
+/// DbContext base generado por el script de creación de módulos.
+/// Este archivo será reemplazado cuando ejecutes scaffold de la base de datos.
+/// 
+/// Comando para scaffold:
+/// dotnet ef dbcontext scaffold "ConnectionString" Microsoft.EntityFrameworkCore.SqlServer --project src/Modules/$ModuleName/$ApplicationName.$ModuleName.Infrastructure --output-dir Models --context ${ModuleName}DbContext --force
+/// </summary>
+public partial class ${ModuleName}DbContext : DbContext
 {
-    private IDbContextTransaction? _currentTransaction;
+    public ${ModuleName}DbContext()
+    {
+    }
 
     public ${ModuleName}DbContext(DbContextOptions<${ModuleName}DbContext> options) : base(options)
     {
     }
 
-    public DbSet<${EntityClassName}> ${EntityName}s { get; set; }
+    // Este DbSet será reemplazado por los DbSets generados desde la base de datos
+    // public virtual DbSet<${EntityClassName}> ${EntityName}s { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Configuraciones específicas del módulo
         modelBuilder.HasDefaultSchema("$($ModuleName.ToLower())");
-        
-        // Apply module-specific configurations
-        modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         
         base.OnModelCreating(modelBuilder);
     }
+}
+"@
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-        => base.SaveChangesAsync(cancellationToken);
+$dbContextBase | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Models/${ModuleName}DbContext.cs" -Encoding UTF8
+
+# DbContext extendido en Persistence (con UnitOfWork)
+$dbContextExtended = @"
+using $RootNamespace.$ModuleName.Infrastructure.Models;
+using $RootNamespace.SharedKernel.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+
+namespace $RootNamespace.$ModuleName.Infrastructure.Persistence;
+
+/// <summary>
+/// DbContext extendido que hereda del DbContext generado por scaffold
+/// e implementa la lógica de UnitOfWork para transacciones
+/// </summary>
+public class ${ModuleName}ExtendedDbContext : ${ModuleName}DbContext, IUnitOfWork
+{
+    private IDbContextTransaction? _currentTransaction;
+
+    public ${ModuleName}ExtendedDbContext(DbContextOptions<${ModuleName}DbContext> options) : base(options)
+    {
+    }
 
     public async Task BeginTransactionAsync()
     {
@@ -670,7 +682,7 @@ public class ${ModuleName}DbContext : DbContext, IUnitOfWork
 }
 "@
 
-$dbContext | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/${ModuleName}DbContext.cs" -Encoding UTF8
+$dbContextExtended | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/${ModuleName}ExtendedDbContext.cs" -Encoding UTF8
 
 # Crear DTOs para consultas
 $dto = @"
@@ -872,6 +884,7 @@ using Microsoft.EntityFrameworkCore;
 using $RootNamespace.$ModuleName.Domain.Abstractions;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
+using $RootNamespace.$ModuleName.Infrastructure.Models;
 using $RootNamespace.SharedKernel.Interfaces;
 
 namespace $RootNamespace.$ModuleName.Infrastructure.Extensions;
@@ -886,14 +899,20 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection Add${ModuleName}Infrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Registrar DbContext
-        services.AddDbContext<${ModuleName}DbContext>(options =>
+        // Registrar DbContext base (para scaffold y migraciones)
+        services.AddDbContext<Models.${ModuleName}DbContext>(options =>
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
-                b => b.MigrationsAssembly(typeof(${ModuleName}DbContext).Assembly.FullName)));
+                b => b.MigrationsAssembly(typeof(Models.${ModuleName}DbContext).Assembly.FullName)));
 
-        // Registrar IUnitOfWork usando el DbContext
-        services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<${ModuleName}DbContext>());
+        // Registrar DbContext extendido (para operaciones con UnitOfWork)
+        services.AddDbContext<${ModuleName}ExtendedDbContext>(options =>
+            options.UseNpgsql(
+                configuration.GetConnectionString("DefaultConnection"),
+                b => b.MigrationsAssembly(typeof(Models.${ModuleName}DbContext).Assembly.FullName)));
+
+        // Registrar IUnitOfWork usando el DbContext extendido
+        services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<${ModuleName}ExtendedDbContext>());
 
         // Registrar repositorios
         services.AddScoped<I${EntityName}Repository, ${EntityName}Repository>();
@@ -1067,7 +1086,7 @@ $sampleTest = @"
 using Xunit;
 using FluentAssertions;
 using $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}s;
-using NSubstitute;
+using Moq;
 using $RootNamespace.$ModuleName.Domain.Abstractions;
 
 namespace $RootNamespace.$ModuleName.Application.Tests.Queries;
@@ -1078,10 +1097,10 @@ public class Get${ModuleName}sHandlerTests
     public async Task Handle_ShouldReturnEmpty${ModuleName}List_WhenNoDataExists()
     {
         // Arrange
-        var mockRepository = Substitute.For<I${EntityName}ReadRepository>();
-        mockRepository.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<object>());
+        var mockRepository = new Mock<I${EntityName}ReadRepository>();
+        mockRepository.Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<object>());
         
-        var handler = new Get${ModuleName}sHandler(mockRepository);
+        var handler = new Get${ModuleName}sHandler(mockRepository.Object);
         var query = new Get${ModuleName}sQuery();
 
         // Act
@@ -1154,8 +1173,13 @@ src/Modules/$ModuleName/
 ├── $ApplicationName.$ModuleName.Domain/
 │   └── Entities/${ModuleName}Entity.cs
 └── $ApplicationName.$ModuleName.Infrastructure/
-    ├── Persistence/${ModuleName}DbContext.cs
-    └── Extensions/ServiceCollectionExtensions.cs
+    ├── Models/
+    │   ├── ${ModuleName}DbContext.cs          # ← Base (reemplazado por scaffold)
+    │   └── ModelsPlaceholder.cs               # ← Eliminar antes de scaffold
+         └── Persistence/
+         ├── ${ModuleName}ExtendedDbContext.cs  # ← Extendido (con UnitOfWork)
+        ├── Repositories/
+        └── Queries/
 
 tests/Unit/$ApplicationName.$ModuleName.Application.Tests/
 └── ${ModuleName}HandlerTests.cs
@@ -1165,10 +1189,22 @@ tests/Unit/$ApplicationName.$ModuleName.Application.Tests/
 - ✅ **CQRS Pattern**: Commands y Queries separados
 - ✅ **MediatR**: Para manejar comandos y consultas
 - ✅ **Records**: Para commands y DTOs
-- ✅ **DbContext propio**: Para el módulo autocontenido
+- ✅ **Database First**: Preparado para scaffold de base de datos existente
+- ✅ **Doble DbContext**: Base (para scaffold) y Extendido (con UnitOfWork)
+- ✅ **EF Core Tools**: Incluido automáticamente para scaffold y migraciones
 - ✅ **Controller versionado**: Con rutas en minúsculas (api/v1/$($ModuleName.ToLower()))
 - ✅ **Endpoints RESTful**: CREATE, GET (lista), GET (por ID) y Health check
 - ✅ **Documentación Swagger**: Con versionado y camelCase
+
+## Arquitectura de DbContext (Database First):
+
+### **Doble DbContext Pattern:**
+- **`Models/${ModuleName}DbContext.cs`**: DbContext base generado por scaffold
+- **`Persistence/${ModuleName}ExtendedDbContext.cs`**: DbContext extendido con UnitOfWork
+
+### **Uso:**
+- **Scaffold y Migraciones**: Usar `${ModuleName}DbContext` (base)
+- **Operaciones de Negocio**: Usar `${ModuleName}ExtendedDbContext` (extendido)
 
 ## Para integrar el módulo:
 
@@ -1183,9 +1219,29 @@ builder.Services.Add${ModuleName}Module(builder.Configuration);
 app.Use${ModuleName}Module();
 ```
 
-### 2. Crear y aplicar migraciones:
+### 2. Database First - Hacer Scaffold de la Base de Datos:
 ```bash
-# Crear migración inicial
+# Eliminar el placeholder del directorio Models (si existe)
+Remove-Item "src/Modules/$ModuleName/$ApplicationName.$ModuleName.Infrastructure/Models/ModelsPlaceholder.cs" -ErrorAction SilentlyContinue
+
+# Hacer scaffold de la base de datos
+dotnet ef dbcontext scaffold "ConnectionString" Microsoft.EntityFrameworkCore.SqlServer \
+  --project src/Modules/$ModuleName/$ApplicationName.$ModuleName.Infrastructure \
+  --output-dir Models \
+  --context ${ModuleName}DbContext \
+  --force
+
+# Para PostgreSQL usar:
+# dotnet ef dbcontext scaffold "ConnectionString" Npgsql.EntityFrameworkCore.PostgreSQL \
+#   --project src/Modules/$ModuleName/$ApplicationName.$ModuleName.Infrastructure \
+#   --output-dir Models \
+#   --context ${ModuleName}DbContext \
+#   --force
+```
+
+### 3. Code First - Crear y aplicar migraciones (opcional):
+```bash
+# Crear migración inicial (usar el DbContext base)
 dotnet ef migrations add InitialCreate \
   --project src/Modules/$ModuleName/$ApplicationName.$ModuleName.Infrastructure \
   --startup-project src/$ApplicationName.Api \
@@ -1220,10 +1276,11 @@ curl -X POST http://localhost:5000/api/v1/$($ModuleName.ToLower()) \       # POS
 2. [OK] Referencias configuradas
 3. [OK] Estructura CQRS implementada (Commands + Queries)
 4. [OK] Controller con endpoints básicos
-5. [PENDIENTE] Implementar repositorios en Infrastructure
-6. [PENDIENTE] Crear migraciones de base de datos
-7. [PENDIENTE] Implementar validaciones con FluentValidation
-8. [PENDIENTE] Agregar tests unitarios
+5. [OK] DbContext extendido con UnitOfWork
+6. [PENDIENTE] Hacer scaffold de la base de datos (Database First)
+7. [PENDIENTE] Implementar repositorios en Infrastructure
+8. [PENDIENTE] Implementar validaciones con FluentValidation
+9. [PENDIENTE] Agregar tests unitarios
 
 Fecha de creación: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 "@
