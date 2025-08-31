@@ -1,4 +1,4 @@
-using __RootNamespace__.Api.Extensions;
+﻿using __RootNamespace__.Api.Extensions;
 using __RootNamespace__.SharedKernel.Extensions;
 using __RootNamespace__.Users.Api.Extensions;
 using Asp.Versioning.ApiExplorer;
@@ -84,3 +84,6 @@ finally
 
 // Make Program class accessible to integration tests
 public partial class Program { }
+
+
+

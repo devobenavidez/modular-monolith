@@ -346,93 +346,21 @@ public class ${ModuleName}Controller : ControllerBase
 
 $controller | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Api/Controllers/${ModuleName}Controller.cs" -Encoding UTF8
 
-# DbContext
-$dbContext = @"
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
-using $RootNamespace.SharedKernel.Interfaces;
-using System.Reflection;
-
-namespace $RootNamespace.$ModuleName.Infrastructure.Persistence;
-
-public class ${ModuleName}DbContext : DbContext, IUnitOfWork
-{
-    private IDbContextTransaction? _currentTransaction;
-
-    public ${ModuleName}DbContext(DbContextOptions<${ModuleName}DbContext> options) : base(options)
-    {
-    }
-
-    // TODO: Add DbSets for module entities
-    // public DbSet<EntityName> EntityNames { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.HasDefaultSchema("$($ModuleName.ToLower())");
-        
-        // Apply module-specific configurations
-        modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
-        
-        base.OnModelCreating(modelBuilder);
-    }
-
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-        => base.SaveChangesAsync(cancellationToken);
-
-    public async Task BeginTransactionAsync()
-    {
-        if (_currentTransaction is not null)
-            return;
-
-        _currentTransaction = await Database.BeginTransactionAsync();
-    }
-
-    public async Task CommitTransactionAsync()
-    {
-        try
-        {
-            await SaveChangesAsync();
-            if (_currentTransaction is not null)
-            {
-                await _currentTransaction.CommitAsync();
-            }
-        }
-        finally
-        {
-            if (_currentTransaction is not null)
-            {
-                await _currentTransaction.DisposeAsync();
-                _currentTransaction = null;
-            }
-        }
-    }
-
-    public async Task RollbackTransactionAsync()
-    {
-        try
-        {
-            if (_currentTransaction is not null)
-            {
-                await _currentTransaction.RollbackAsync();
-            }
-        }
-        finally
-        {
-            if (_currentTransaction is not null)
-            {
-                await _currentTransaction.DisposeAsync();
-                _currentTransaction = null;
-            }
-        }
-    }
-}
-"@
-
-$dbContext | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/${ModuleName}DbContext.cs" -Encoding UTF8
+# DbContext se generará después de definir las variables de entidad
 
 # Crear archivos de repositorio en la nueva estructura
 # Convertir ModuleName a singular para entidad (ejemplo: Products -> Product)
+# En DDD, las entidades se nombran por su concepto de dominio sin sufijos
 $EntityName = if ($ModuleName.EndsWith("s")) { $ModuleName.Substring(0, $ModuleName.Length - 1) } else { $ModuleName }
+$EntityClassName = $EntityName
+
+# Validar que el nombre de la entidad no cause conflictos con el namespace
+# Si el nombre de la entidad es igual al nombre del módulo, usar un nombre más específico
+if ($EntityClassName -eq $ModuleName) {
+    Write-Host "⚠️ Advertencia: El nombre de la entidad '$EntityClassName' coincide con el nombre del módulo '$ModuleName'" -ForegroundColor Yellow
+    Write-Host "   Esto puede causar conflictos de namespace. Considera usar un nombre más específico para el módulo." -ForegroundColor Yellow
+    Write-Host "   Ejemplo: En lugar de 'TestModule', usa 'Products', 'Orders', 'Customers', etc." -ForegroundColor Yellow
+}
 
 # Crear interface del repositorio en Domain/Abstractions (EF Core para CUD)
 $repositoryInterface = @"
@@ -442,11 +370,11 @@ namespace $RootNamespace.$ModuleName.Domain.Abstractions;
 
 public interface I${EntityName}Repository
 {
-    Task<${EntityName}?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<List<${EntityName}>> GetAllAsync(CancellationToken cancellationToken = default);
-    Task AddAsync(${EntityName} entity, CancellationToken cancellationToken = default);
-    void Update(${EntityName} entity);
-    void Delete(${EntityName} entity);
+    Task<${EntityClassName}?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<List<${EntityClassName}>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task AddAsync(${EntityClassName} entity, CancellationToken cancellationToken = default);
+    void Update(${EntityClassName} entity);
+    void Delete(${EntityClassName} entity);
 }
 "@
 
@@ -502,30 +430,30 @@ namespace $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
 public class ${EntityName}Repository : I${EntityName}Repository
 {
     private readonly ${ModuleName}DbContext _context;
-    private readonly DbSet<${EntityName}> _entities;
+    private readonly DbSet<${EntityClassName}> _entities;
 
     public ${EntityName}Repository(${ModuleName}DbContext context)
     {
         _context = context;
-        _entities = context.Set<${EntityName}>();
+        _entities = context.Set<${EntityClassName}>();
     }
 
-    public async Task<${EntityName}?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<${EntityClassName}?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _entities.FindAsync(new object[] { id }, cancellationToken);
     }
 
-    public async Task<List<${EntityName}>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<List<${EntityClassName}>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _entities.ToListAsync(cancellationToken);
     }
 
-    public async Task AddAsync(${EntityName} entity, CancellationToken cancellationToken = default)
+    public async Task AddAsync(${EntityClassName} entity, CancellationToken cancellationToken = default)
     {
         await _entities.AddAsync(entity, cancellationToken);
     }
 
-    public void Update(${EntityName} entity)
+    public void Update(${EntityClassName} entity)
     {
         _entities.Update(entity);
     }
@@ -633,7 +561,7 @@ using $RootNamespace.SharedKernel.Common;
 
 namespace $RootNamespace.$ModuleName.Domain.Entities;
 
-public class ${EntityName} : BaseEntity
+public class ${EntityClassName} : BaseEntity
 {
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
@@ -659,6 +587,90 @@ public class ${EntityName} : BaseEntity
 "@
 
 $entity | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Entities/${EntityName}.cs" -Encoding UTF8
+
+# DbContext (generado después de definir las variables de entidad)
+$dbContext = @"
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using $RootNamespace.SharedKernel.Interfaces;
+using $RootNamespace.$ModuleName.Domain.Entities;
+using System.Reflection;
+
+namespace $RootNamespace.$ModuleName.Infrastructure.Persistence;
+
+public class ${ModuleName}DbContext : DbContext, IUnitOfWork
+{
+    private IDbContextTransaction? _currentTransaction;
+
+    public ${ModuleName}DbContext(DbContextOptions<${ModuleName}DbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<${EntityClassName}> ${EntityName}s { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("$($ModuleName.ToLower())");
+        
+        // Apply module-specific configurations
+        modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        
+        base.OnModelCreating(modelBuilder);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => base.SaveChangesAsync(cancellationToken);
+
+    public async Task BeginTransactionAsync()
+    {
+        if (_currentTransaction is not null)
+            return;
+
+        _currentTransaction = await Database.BeginTransactionAsync();
+    }
+
+    public async Task CommitTransactionAsync()
+    {
+        try
+        {
+            await SaveChangesAsync();
+            if (_currentTransaction is not null)
+            {
+                await _currentTransaction.CommitAsync();
+            }
+        }
+        finally
+        {
+            if (_currentTransaction is not null)
+            {
+                await _currentTransaction.DisposeAsync();
+                _currentTransaction = null;
+            }
+        }
+    }
+
+    public async Task RollbackTransactionAsync()
+    {
+        try
+        {
+            if (_currentTransaction is not null)
+            {
+                await _currentTransaction.RollbackAsync();
+            }
+        }
+        finally
+        {
+            if (_currentTransaction is not null)
+            {
+                await _currentTransaction.DisposeAsync();
+                _currentTransaction = null;
+            }
+        }
+    }
+}
+"@
+
+$dbContext | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/${ModuleName}DbContext.cs" -Encoding UTF8
 
 # Crear DTOs para consultas
 $dto = @"
