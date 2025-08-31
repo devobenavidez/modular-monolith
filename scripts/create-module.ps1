@@ -29,35 +29,46 @@ if ([string]::IsNullOrEmpty($RootNamespace) -or [string]::IsNullOrEmpty($Applica
     $slnFile = $slnFiles[0]
     $detectedAppName = [System.IO.Path]::GetFileNameWithoutExtension($slnFile.Name)
     
-    # Buscar proyecto API principal
-    $apiProjectPath = "src\$detectedAppName.Api\$detectedAppName.Api.csproj"
-    if (Test-Path $apiProjectPath) {
-        # Leer el archivo .csproj para obtener el RootNamespace
-        $csprojContent = Get-Content $apiProjectPath -Raw
-        $rootNamespaceMatch = [regex]::Match($csprojContent, '<RootNamespace>(.*?)</RootNamespace>')
-        
-        if ($rootNamespaceMatch.Success) {
-            $detectedRootNamespace = $rootNamespaceMatch.Groups[1].Value
-        } else {
-            # Si no hay RootNamespace explícito, usar el nombre del proyecto
-            $detectedRootNamespace = $detectedAppName
-        }
-        
-        # Usar valores detectados si no se proporcionaron
-        if ([string]::IsNullOrEmpty($RootNamespace)) {
-            $RootNamespace = $detectedRootNamespace
-        }
-        if ([string]::IsNullOrEmpty($ApplicationName)) {
-            $ApplicationName = $detectedAppName
-        }
-        
-        Write-Host "✅ Configuración detectada:" -ForegroundColor Green
-        Write-Host "   ApplicationName: $ApplicationName" -ForegroundColor Cyan
-        Write-Host "   RootNamespace: $RootNamespace" -ForegroundColor Cyan
+    # Si el nombre del archivo .sln contiene placeholders, usar valores por defecto
+    if ($detectedAppName -like "*__*") {
+        Write-Host "⚠️ Detectado template con placeholders. Usando valores por defecto..." -ForegroundColor Yellow
+        $detectedAppName = "MonolithTemplate"
+        $detectedRootNamespace = "MonolithTemplate"
     } else {
-        Write-Error "No se pudo detectar la configuración. Proporciona ApplicationName y RootNamespace manualmente."
-        exit 1
+        # Buscar proyecto API principal
+        $apiProjectPath = "src\$detectedAppName.Api\$detectedAppName.Api.csproj"
+        if (Test-Path $apiProjectPath) {
+            # Leer el archivo .csproj para obtener el RootNamespace
+            $csprojContent = Get-Content $apiProjectPath -Raw
+            $rootNamespaceMatch = [regex]::Match($csprojContent, '<RootNamespace>(.*?)</RootNamespace>')
+            
+            if ($rootNamespaceMatch.Success) {
+                $detectedRootNamespace = $rootNamespaceMatch.Groups[1].Value
+                # Si el RootNamespace también contiene placeholders, usar el nombre del proyecto
+                if ($detectedRootNamespace -like "*__*") {
+                    $detectedRootNamespace = $detectedAppName
+                }
+            } else {
+                # Si no hay RootNamespace explícito, usar el nombre del proyecto
+                $detectedRootNamespace = $detectedAppName
+            }
+        } else {
+            Write-Error "No se pudo detectar la configuración. Proporciona ApplicationName y RootNamespace manualmente."
+            exit 1
+        }
     }
+    
+    # Usar valores detectados si no se proporcionaron
+    if ([string]::IsNullOrEmpty($RootNamespace)) {
+        $RootNamespace = $detectedRootNamespace
+    }
+    if ([string]::IsNullOrEmpty($ApplicationName)) {
+        $ApplicationName = $detectedAppName
+    }
+    
+    Write-Host "✅ Configuración detectada:" -ForegroundColor Green
+    Write-Host "   ApplicationName: $ApplicationName" -ForegroundColor Cyan
+    Write-Host "   RootNamespace: $RootNamespace" -ForegroundColor Cyan
 }
 
 Write-Host "Creando módulo: $ModuleName" -ForegroundColor Green
@@ -72,6 +83,7 @@ $directories = @(
     "$modulePath/$ApplicationName.$ModuleName.Application/Commands",
     "$modulePath/$ApplicationName.$ModuleName.Application/Queries",
     "$modulePath/$ApplicationName.$ModuleName.Application/DTOs",
+    "$modulePath/$ApplicationName.$ModuleName.Application/DTOs/Reports",
     "$modulePath/$ApplicationName.$ModuleName.Application/Interfaces",
     "$modulePath/$ApplicationName.$ModuleName.Domain/Entities",
     "$modulePath/$ApplicationName.$ModuleName.Domain/ValueObjects",
@@ -183,6 +195,7 @@ $infrastructureCsproj = @"
   
   <ItemGroup>
     <ProjectReference Include="..\$ApplicationName.$ModuleName.Domain\$ApplicationName.$ModuleName.Domain.csproj" />
+    <ProjectReference Include="..\$ApplicationName.$ModuleName.Application\$ApplicationName.$ModuleName.Application.csproj" />
     <ProjectReference Include="..\..\..\$ApplicationName.SharedKernel\$ApplicationName.SharedKernel.csproj" />
   </ItemGroup>
 
@@ -236,13 +249,27 @@ public static class AssemblyMarker
 
 $assemblyMarker | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Application/AssemblyMarker.cs" -Encoding UTF8
 
+# Definir EntityName antes de generar el controller
+$EntityName = if ($ModuleName.EndsWith("s")) { $ModuleName.Substring(0, $ModuleName.Length - 1) } else { $ModuleName }
+$EntityClassName = $EntityName
+
+# Validar que el nombre de la entidad no cause conflictos con el namespace
+if ($EntityClassName -eq $ModuleName) {
+    Write-Host "⚠️ Advertencia: El nombre de la entidad '$EntityClassName' coincide con el nombre del módulo '$ModuleName'" -ForegroundColor Yellow
+    Write-Host "   Esto puede causar conflictos de namespace. Considera usar un nombre más específico para el módulo." -ForegroundColor Yellow
+    Write-Host "   Ejemplo: En lugar de 'TestModule', usa 'Products', 'Orders', 'Customers', etc." -ForegroundColor Yellow
+}
+
 # Controller
 $controller = @"
 using Microsoft.AspNetCore.Mvc;
 using MediatR;
 using $RootNamespace.$ModuleName.Application.Commands.Create${ModuleName};
 using $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}s;
+using $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}ById;
+using $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}Report;
 using $RootNamespace.$ModuleName.Application.DTOs;
+using $RootNamespace.$ModuleName.Application.DTOs.Reports;
 
 namespace $RootNamespace.$ModuleName.Api.Controllers;
 
@@ -308,8 +335,20 @@ public class ${ModuleName}Controller : ControllerBase
         [FromRoute] long id,
         CancellationToken cancellationToken)
     {
-        // TODO: Implement GetByIdQuery when available
-        return NotFound(new { message = $"${ModuleName} with ID {id} not found" });
+        try
+        {
+            var query = new Get${ModuleName}ByIdQuery(id);
+            var result = await _mediator.Send(query, cancellationToken);
+            
+            if (result == null)
+                return NotFound(new { message = $"${ModuleName} with ID {id} not found" });
+                
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -327,6 +366,28 @@ public class ${ModuleName}Controller : ControllerBase
             version = "1.0"
         });
     }
+
+    /// <summary>
+    /// Get ${ModuleName.ToLower()} report with additional data
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>${ModuleName} report data</returns>
+    [HttpGet("report")]
+    [ProducesResponseType(typeof(IEnumerable<${EntityName}ReportDto>), 200)]
+    public async Task<ActionResult<IEnumerable<${EntityName}ReportDto>>> Get${ModuleName}Report(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = new Get${ModuleName}ReportQuery();
+            var result = await _mediator.Send(query, cancellationToken);
+            
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
 "@
 
@@ -335,18 +396,7 @@ $controller | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Api/C
 # DbContext se generará después de definir las variables de entidad
 
 # Crear archivos de repositorio en la nueva estructura
-# Convertir ModuleName a singular para entidad (ejemplo: Products -> Product)
-# En DDD, las entidades se nombran por su concepto de dominio sin sufijos
-$EntityName = if ($ModuleName.EndsWith("s")) { $ModuleName.Substring(0, $ModuleName.Length - 1) } else { $ModuleName }
-$EntityClassName = $EntityName
-
-# Validar que el nombre de la entidad no cause conflictos con el namespace
-# Si el nombre de la entidad es igual al nombre del módulo, usar un nombre más específico
-if ($EntityClassName -eq $ModuleName) {
-    Write-Host "⚠️ Advertencia: El nombre de la entidad '$EntityClassName' coincide con el nombre del módulo '$ModuleName'" -ForegroundColor Yellow
-    Write-Host "   Esto puede causar conflictos de namespace. Considera usar un nombre más específico para el módulo." -ForegroundColor Yellow
-    Write-Host "   Ejemplo: En lugar de 'TestModule', usa 'Products', 'Orders', 'Customers', etc." -ForegroundColor Yellow
-}
+# Las variables $EntityName y $EntityClassName ya están definidas arriba
 
 # Crear interface del repositorio en Domain/Abstractions (EF Core para CUD)
 $repositoryInterface = @"
@@ -364,29 +414,37 @@ public interface I${EntityName}Repository
 
 $repositoryInterface | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Abstractions/I${EntityName}Repository.cs" -Encoding UTF8
 
-# Crear interface del repositorio de lectura en Domain/Abstractions (Dapper para R)
-$readRepositoryInterface = @"
-namespace $RootNamespace.$ModuleName.Domain.Abstractions;
+# NO crear interface del repositorio de lectura en Domain/Abstractions
+# Solo se crea en Application/Interfaces para mantener Domain limpio
+
+# Crear interface del repositorio de lectura en Application/Interfaces (Dapper para R)
+$readRepositoryInterfaceApp = @"
+using $RootNamespace.$ModuleName.Application.DTOs;
+using $RootNamespace.$ModuleName.Application.DTOs.Reports;
+
+namespace $RootNamespace.$ModuleName.Application.Interfaces;
 
 /// <summary>
 /// Interface para operaciones de solo lectura de ${EntityName.ToLower()}s usando Dapper
+/// Incluye consultas básicas y reportes en un solo repositorio
+/// Retorna DTOs directamente para evitar violar DDD
 /// </summary>
 public interface I${EntityName}ReadRepository
 {
     /// <summary>
     /// Obtiene un ${EntityName.ToLower()} por su ID
     /// </summary>
-    Task<object?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
+    Task<${ModuleName}Dto?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Obtiene todos los ${EntityName.ToLower()}s
     /// </summary>
-    Task<IEnumerable<object>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<${ModuleName}Dto>> GetAllAsync(CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Obtiene ${EntityName.ToLower()}s por filtro
     /// </summary>
-    Task<IEnumerable<object>> GetByFilterAsync(object filter, CancellationToken cancellationToken = default);
+    Task<IEnumerable<${ModuleName}Dto>> GetByFilterAsync(object filter, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Verifica si existe un ${EntityName.ToLower()} con el ID especificado
@@ -397,10 +455,23 @@ public interface I${EntityName}ReadRepository
     /// Cuenta el total de ${EntityName.ToLower()}s
     /// </summary>
     Task<int> CountAsync(CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Reporte básico de ${EntityName.ToLower()}s con datos hardcodeados para pruebas
+    /// </summary>
+    Task<IEnumerable<${EntityName}ReportDto>> GetBasicReportAsync(CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Reporte de ${EntityName.ToLower()}s con filtros
+    /// </summary>
+    Task<IEnumerable<${EntityName}ReportDto>> GetFilteredReportAsync(object filter, CancellationToken cancellationToken = default);
 }
 "@
 
-$readRepositoryInterface | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Abstractions/I${EntityName}ReadRepository.cs" -Encoding UTF8
+# NO crear interface separada para reportes - se unifica en I${EntityName}ReadRepository
+
+# Escribir interface del repositorio de lectura en Application/Interfaces (incluye reportes)
+$readRepositoryInterfaceApp | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Application/Interfaces/I${EntityName}ReadRepository.cs" -Encoding UTF8
 
 # Crear implementación del repositorio en Infrastructure
 $repositoryImplementation = @"
@@ -470,7 +541,9 @@ $repositoryImplementation | Out-File -FilePath "$modulePath/$ApplicationName.$Mo
 $readRepositoryImplementation = @"
 using System.Data;
 using Dapper;
-using $RootNamespace.$ModuleName.Domain.Abstractions;
+using $RootNamespace.$ModuleName.Application.Interfaces;
+using $RootNamespace.$ModuleName.Application.DTOs;
+using $RootNamespace.$ModuleName.Application.DTOs.Reports;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence.Queries;
 using $RootNamespace.SharedKernel.Interfaces;
 
@@ -478,6 +551,8 @@ namespace $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
 
 /// <summary>
 /// Repositorio de lectura para ${EntityName.ToLower()}s usando Dapper
+/// Implementa la interfaz de Application para mantener Domain limpio
+/// Incluye consultas básicas y reportes en un solo repositorio
 /// </summary>
 public class ${EntityName}ReadRepository : I${EntityName}ReadRepository
 {
@@ -488,66 +563,139 @@ public class ${EntityName}ReadRepository : I${EntityName}ReadRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<object?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<${ModuleName}Dto?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
     {
-        using var connection = _connectionFactory.CreateConnection();
-        return await connection.QueryFirstOrDefaultAsync<dynamic>(
-            ${EntityName}Queries.GetById, 
-            new { Id = id });
-    }
-
-    public async Task<IEnumerable<object>> GetAllAsync(CancellationToken cancellationToken = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        return await connection.QueryAsync<dynamic>(${EntityName}Queries.GetAll);
-    }
-
-    public async Task<IEnumerable<object>> GetByFilterAsync(object filter, CancellationToken cancellationToken = default)
-    {
-        // Usar reflection para acceder a las propiedades del filtro
-        var filterType = filter.GetType();
-        var searchTermProp = filterType.GetProperty("SearchTerm");
-        var isActiveProp = filterType.GetProperty("IsActive");
-        var createdFromProp = filterType.GetProperty("CreatedFrom");
-        var createdToProp = filterType.GetProperty("CreatedTo");
-        var pageProp = filterType.GetProperty("Page");
-        var pageSizeProp = filterType.GetProperty("PageSize");
-        var sortByProp = filterType.GetProperty("SortBy");
-        var sortDescendingProp = filterType.GetProperty("SortDescending");
-
-        var page = Convert.ToInt32(pageProp?.GetValue(filter) ?? 1);
-        var pageSize = Convert.ToInt32(pageSizeProp?.GetValue(filter) ?? 10);
-        var offset = (page - 1) * pageSize;
-
-        var parameters = new
+        // TODO: Implementar con Dapper cuando tengas la base de datos
+        // Por ahora retornar datos hardcodeados para pruebas
+        
+        await Task.Delay(100, cancellationToken); // Simular operación async
+        
+        // Simular búsqueda por ID
+        if (id == 1)
         {
-            SearchTerm = searchTermProp?.GetValue(filter)?.ToString() != null ? `$"%{searchTermProp.GetValue(filter)}%"` : null,
-            IsActive = isActiveProp?.GetValue(filter),
-            CreatedFrom = createdFromProp?.GetValue(filter),
-            CreatedTo = createdToProp?.GetValue(filter),
-            PageSize = pageSize,
-            Offset = offset,
-            SortBy = sortByProp?.GetValue(filter) ?? "Name",
-            SortDescending = sortDescendingProp?.GetValue(filter) ?? false
-        };
+            return new ${ModuleName}Dto
+            {
+                Id = 1L,
+                Name = "Producto de Prueba 1",
+                Description = "Descripción del producto de prueba 1",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-30),
+                UpdatedAt = DateTime.UtcNow.AddDays(-5)
+            };
+        }
+        
+        return null; // No encontrado
+    }
 
-        using var connection = _connectionFactory.CreateConnection();
-        return await connection.QueryAsync<dynamic>(${EntityName}Queries.GetByFilter, parameters);
+    public async Task<IEnumerable<${ModuleName}Dto>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        // TODO: Implementar con Dapper cuando tengas la base de datos
+        // Por ahora retornar datos hardcodeados para pruebas
+        
+        await Task.Delay(100, cancellationToken); // Simular operación async
+        
+        return new List<${ModuleName}Dto>
+        {
+            new ${ModuleName}Dto
+            {
+                Id = 1L,
+                Name = "Producto de Prueba 1",
+                Description = "Descripción del producto de prueba 1",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-30),
+                UpdatedAt = DateTime.UtcNow.AddDays(-5)
+            },
+            new ${ModuleName}Dto
+            {
+                Id = 2L,
+                Name = "Producto de Prueba 2",
+                Description = "Descripción del producto de prueba 2",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-25),
+                UpdatedAt = DateTime.UtcNow.AddDays(-3)
+            }
+        };
+    }
+
+    public async Task<IEnumerable<${ModuleName}Dto>> GetByFilterAsync(object filter, CancellationToken cancellationToken = default)
+    {
+        // TODO: Implementar filtros cuando tengas la base de datos
+        // Por ahora retornar el mismo resultado que GetAllAsync
+        return await GetAllAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsAsync(long id, CancellationToken cancellationToken = default)
     {
-        using var connection = _connectionFactory.CreateConnection();
-        var count = await connection.ExecuteScalarAsync<int>(
-            ${EntityName}Queries.Exists, 
-            new { Id = id });
-        return count > 0;
+        // TODO: Implementar con Dapper cuando tengas la base de datos
+        // Por ahora retornar datos hardcodeados para pruebas
+        await Task.Delay(100, cancellationToken); // Simular operación async
+        return id == 1 || id == 2; // Solo existen los IDs 1 y 2
     }
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
     {
-        using var connection = _connectionFactory.CreateConnection();
-        return await connection.ExecuteScalarAsync<int>(${EntityName}Queries.Count);
+        // TODO: Implementar con Dapper cuando tengas la base de datos
+        // Por ahora retornar datos hardcodeados para pruebas
+        await Task.Delay(100, cancellationToken); // Simular operación async
+        return 2; // Solo tenemos 2 productos de prueba
+    }
+
+    public async Task<IEnumerable<${EntityName}ReportDto>> GetBasicReportAsync(CancellationToken cancellationToken = default)
+    {
+        // TODO: Implementar con Dapper cuando tengas la base de datos
+        // Por ahora retornar datos hardcodeados para pruebas
+        
+        await Task.Delay(100, cancellationToken); // Simular operación async
+        
+        return new List<${EntityName}ReportDto>
+        {
+            new ${EntityName}ReportDto
+            {
+                Id = 1L,
+                Name = "Producto de Prueba 1",
+                Description = "Descripción del producto de prueba 1",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-30),
+                UpdatedAt = DateTime.UtcNow.AddDays(-5),
+                Status = "Activo",
+                Category = "Electrónicos",
+                Price = 99.99m,
+                Stock = 50
+            },
+            new ${EntityName}ReportDto
+            {
+                Id = 2L,
+                Name = "Producto de Prueba 2",
+                Description = "Descripción del producto de prueba 2",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-25),
+                UpdatedAt = DateTime.UtcNow.AddDays(-3),
+                Status = "Activo",
+                Category = "Ropa",
+                Price = 45.50m,
+                Stock = 25
+            },
+            new ${EntityName}ReportDto
+            {
+                Id = 3L,
+                Name = "Producto de Prueba 3",
+                Description = "Descripción del producto de prueba 3",
+                IsActive = false,
+                CreatedAt = DateTime.UtcNow.AddDays(-20),
+                UpdatedAt = DateTime.UtcNow.AddDays(-1),
+                Status = "Inactivo",
+                Category = "Hogar",
+                Price = 75.00m,
+                Stock = 0
+            }
+        };
+    }
+
+    public async Task<IEnumerable<${EntityName}ReportDto>> GetFilteredReportAsync(object filter, CancellationToken cancellationToken = default)
+    {
+        // TODO: Implementar filtros cuando tengas la base de datos
+        // Por ahora retornar el reporte básico
+        return await GetBasicReportAsync(cancellationToken);
     }
 }
 "@
@@ -739,7 +887,35 @@ public class ${EntityName}FilterDto
 }
 "@
 
+# Crear DTOs de reporte
+$reportDto = @"
+namespace $RootNamespace.$ModuleName.Application.DTOs.Reports;
+
+/// <summary>
+/// DTO para reportes de ${EntityName.ToLower()}s
+/// Ejemplo: Reporte básico con datos hardcodeados para pruebas
+/// </summary>
+public class ${EntityName}ReportDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    
+    // Campos adicionales para reportes (ejemplo)
+    public string Status { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public int Stock { get; set; }
+}
+"@
+
 $filterDto | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Application/DTOs/${EntityName}FilterDto.cs" -Encoding UTF8
+
+# Escribir DTOs de reporte
+$reportDto | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Application/DTOs/Reports/${EntityName}ReportDto.cs" -Encoding UTF8
 
 # Crear consultas SQL para Dapper
 $queries = @"
@@ -830,6 +1006,20 @@ public class ${EntityName}
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+
+/// <summary>
+/// Modelo de datos para consultas Dapper
+/// Usado para mapear resultados de consultas SQL
+/// </summary>
+public class ${EntityName}Data
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
 "@
 
 $modelPlaceholder | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Models/${EntityName}.cs" -Encoding UTF8
@@ -910,6 +1100,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using $RootNamespace.$ModuleName.Domain.Abstractions;
+using $RootNamespace.$ModuleName.Application.Interfaces;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
 using $RootNamespace.$ModuleName.Infrastructure.Models;
@@ -945,6 +1136,7 @@ public static class ServiceCollectionExtensions
         // Registrar repositorios (usar DbContext extendido para operaciones CUD)
         services.AddScoped<I${EntityName}Repository, ${EntityName}Repository>();
         services.AddScoped<I${EntityName}ReadRepository, ${EntityName}ReadRepository>();
+        // NO registrar repositorio de reportes separado - se unifica en ${EntityName}ReadRepository
 
         return services;
     }
@@ -960,13 +1152,15 @@ $infraDI | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastr
 $sampleDto = @"
 namespace $RootNamespace.$ModuleName.Application.DTOs;
 
-public record ${ModuleName}Dto(
-    long Id,
-    string Name,
-    string Description,
-    DateTime CreatedAt,
-    DateTime UpdatedAt
-);
+public class ${ModuleName}Dto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
 "@
 
 $sampleDto | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Application/DTOs/${ModuleName}Dto.cs" -Encoding UTF8
@@ -992,16 +1186,19 @@ $sampleCommandHandler = @"
 using MediatR;
 using $RootNamespace.SharedKernel.Interfaces;
 using $RootNamespace.$ModuleName.Domain.Entities;
+using $RootNamespace.$ModuleName.Domain.Abstractions;
 
 namespace $RootNamespace.$ModuleName.Application.Commands.Create${ModuleName};
 
 public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleName}Command, long>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly I${EntityName}Repository _repository;
 
-    public Create${ModuleName}CommandHandler(IUnitOfWork unitOfWork)
+    public Create${ModuleName}CommandHandler(IUnitOfWork unitOfWork, I${EntityName}Repository repository)
     {
         _unitOfWork = unitOfWork;
+        _repository = repository;
     }
 
     public async Task<long> Handle(Create${ModuleName}Command request, CancellationToken cancellationToken)
@@ -1011,8 +1208,8 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
         // Create new entity
         var entity = ${EntityName}.Create(request.Name, request.Description);
 
-        // TODO: Add to repository when implemented
-        // await _repository.AddAsync(entity, cancellationToken);
+        // Add to repository
+        await _repository.AddAsync(entity, cancellationToken);
 
         // Save changes
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1031,7 +1228,7 @@ New-Item -ItemType Directory -Force -Path $queryDir | Out-Null
 $sampleQuery = @"
 using MediatR;
 using $RootNamespace.$ModuleName.Application.DTOs;
-using $RootNamespace.$ModuleName.Domain.Abstractions;
+using $RootNamespace.$ModuleName.Application.Interfaces;
 
 namespace $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}s;
 
@@ -1049,7 +1246,12 @@ public class Get${ModuleName}sHandler : IRequestHandler<Get${ModuleName}sQuery, 
     public async Task<List<${ModuleName}Dto>> Handle(Get${ModuleName}sQuery request, CancellationToken cancellationToken)
     {
         var result = await _readRepository.GetAllAsync(cancellationToken);
-        return result.Cast<${ModuleName}Dto>().ToList();
+        
+        if (result == null || !result.Any())
+            return new List<${ModuleName}Dto>();
+            
+        // Ahora retorna DTOs directamente, no hay mapeo necesario
+        return result.ToList();
     }
 }
 "@
@@ -1063,7 +1265,7 @@ New-Item -ItemType Directory -Force -Path $queryByIdDir | Out-Null
 $sampleQueryById = @"
 using MediatR;
 using $RootNamespace.$ModuleName.Application.DTOs;
-using $RootNamespace.$ModuleName.Domain.Abstractions;
+using $RootNamespace.$ModuleName.Application.Interfaces;
 
 namespace $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}ById;
 
@@ -1080,13 +1282,45 @@ public class Get${ModuleName}ByIdHandler : IRequestHandler<Get${ModuleName}ByIdQ
 
     public async Task<${ModuleName}Dto?> Handle(Get${ModuleName}ByIdQuery request, CancellationToken cancellationToken)
     {
-        var result = await _readRepository.GetByIdAsync(request.Id, cancellationToken);
-        return result as ${ModuleName}Dto;
+        // Ahora retorna DTO directamente, no hay mapeo necesario
+        return await _readRepository.GetByIdAsync(request.Id, cancellationToken);
     }
 }
 "@
 
 $sampleQueryById | Out-File -FilePath "$queryByIdDir/Get${ModuleName}ByIdQuery.cs" -Encoding UTF8
+
+# Sample Query - Get Report
+$queryReportDir = "$modulePath/$ApplicationName.$ModuleName.Application/Queries/Get${ModuleName}Report"
+New-Item -ItemType Directory -Force -Path $queryReportDir | Out-Null
+
+$sampleQueryReport = @"
+using MediatR;
+using $RootNamespace.$ModuleName.Application.DTOs.Reports;
+using $RootNamespace.$ModuleName.Application.Interfaces;
+
+namespace $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}Report;
+
+public record Get${ModuleName}ReportQuery : IRequest<IEnumerable<${EntityName}ReportDto>>;
+
+public class Get${ModuleName}ReportHandler : IRequestHandler<Get${ModuleName}ReportQuery, IEnumerable<${EntityName}ReportDto>>
+{
+    private readonly I${EntityName}ReadRepository _readRepository;
+
+    public Get${ModuleName}ReportHandler(I${EntityName}ReadRepository readRepository)
+    {
+        _readRepository = readRepository;
+    }
+
+    public async Task<IEnumerable<${EntityName}ReportDto>> Handle(Get${ModuleName}ReportQuery request, CancellationToken cancellationToken)
+    {
+        // Ahora retorna DTOs directamente, no hay mapeo necesario
+        return await _readRepository.GetBasicReportAsync(cancellationToken);
+    }
+}
+"@
+
+$sampleQueryReport | Out-File -FilePath "$queryReportDir/Get${ModuleName}ReportQuery.cs" -Encoding UTF8
 
 # Sample Test
 $sampleTest = @"
@@ -1094,7 +1328,8 @@ using Xunit;
 using FluentAssertions;
 using $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}s;
 using Moq;
-using $RootNamespace.$ModuleName.Domain.Abstractions;
+using $RootNamespace.$ModuleName.Application.Interfaces;
+using $RootNamespace.$ModuleName.Application.DTOs;
 
 namespace $RootNamespace.$ModuleName.Application.Tests.Queries;
 
@@ -1105,7 +1340,7 @@ public class Get${ModuleName}sHandlerTests
     {
         // Arrange
         var mockRepository = new Mock<I${EntityName}ReadRepository>();
-        mockRepository.Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<object>());
+        mockRepository.Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<${ModuleName}Dto>());
         
         var handler = new Get${ModuleName}sHandler(mockRepository.Object);
         var query = new Get${ModuleName}sQuery();
@@ -1174,19 +1409,33 @@ src/Modules/$ModuleName/
 │   │   └── Create${ModuleName}CommandHandler.cs
 │   ├── Queries/
 │   │   ├── Get${ModuleName}s/Get${ModuleName}sQuery.cs
-│   │   └── Get${ModuleName}ById/Get${ModuleName}ByIdQuery.cs
-│   ├── DTOs/${ModuleName}Dto.cs
+│   │   ├── Get${ModuleName}ById/Get${ModuleName}ByIdQuery.cs
+│   │   └── Get${ModuleName}Report/Get${ModuleName}ReportQuery.cs
+│   ├── DTOs/
+│   │   ├── ${ModuleName}Dto.cs
+│   │   ├── ${EntityName}FilterDto.cs
+│   │   └── Reports/${EntityName}ReportDto.cs
+│   ├── Interfaces/
+│   │   ├── I${EntityName}ReadRepository.cs
+│   │   └── I${EntityName}ReportRepository.cs
 │   └── AssemblyMarker.cs
 ├── $ApplicationName.$ModuleName.Domain/
-│   └── Entities/${EntityName}.cs
+│   ├── Entities/${EntityName}.cs
+│   └── Abstractions/
+│       └── I${EntityName}Repository.cs        # Solo CRUD básico
 └── $ApplicationName.$ModuleName.Infrastructure/
     ├── Models/
     │   ├── ${ModuleName}DbContext.cs          # ← Base (reemplazado por scaffold)
+    │   ├── ${EntityName}.cs                   # ← Placeholder para scaffold
     │   └── ModelsPlaceholder.cs               # ← Eliminar antes de scaffold
-         └── Persistence/
-         ├── ${ModuleName}ExtendedDbContext.cs  # ← Extendido (con UnitOfWork)
+    └── Persistence/
+        ├── ${ModuleName}ExtendedDbContext.cs  # ← Extendido (con UnitOfWork)
         ├── Repositories/
+        │   ├── ${EntityName}Repository.cs     # CRUD con EF Core
+        │   ├── ${EntityName}ReadRepository.cs # Lectura con Dapper (NotImplemented)
+        │   └── ${EntityName}ReportRepository.cs # Reportes (datos hardcodeados)
         └── Queries/
+            └── ${EntityName}Queries.cs        # SQL para Dapper
 
 tests/Unit/$ApplicationName.$ModuleName.Application.Tests/
 └── ${ModuleName}HandlerTests.cs
@@ -1200,9 +1449,13 @@ tests/Unit/$ApplicationName.$ModuleName.Application.Tests/
 - ✅ **Doble DbContext**: Base (para scaffold) y Extendido (con UnitOfWork)
 - ✅ **Mapeo de Entidades**: Separación entre entidades de dominio y modelos de infraestructura
 - ✅ **Repositorio CUD**: Solo operaciones Create, Update, Delete con EF Core
+- ✅ **Repositorio de Lectura**: Operaciones de consulta con Dapper y mapeo a DTOs
+- ✅ **Repositorio de Reportes**: Reportes con datos hardcodeados para pruebas
+- ✅ **Flujo Completo de Queries**: Controller → MediatR → QueryHandler → Repository → DTO
+- ✅ **Flujo de Reportes**: Endpoint /report con datos de ejemplo
 - ✅ **EF Core Tools**: Incluido automáticamente para scaffold y migraciones
 - ✅ **Controller versionado**: Con rutas en minúsculas (api/v1/$($ModuleName.ToLower()))
-- ✅ **Endpoints RESTful**: CREATE, GET (lista), GET (por ID) y Health check
+- ✅ **Endpoints RESTful**: CREATE, GET (lista), GET (por ID), GET (report) y Health check
 - ✅ **Documentación Swagger**: Con versionado y camelCase
 
 ## Arquitectura de DbContext (Database First):
@@ -1285,13 +1538,14 @@ curl -X POST http://localhost:5000/api/v1/$($ModuleName.ToLower()) \       # POS
 ## Próximos pasos de desarrollo:
 1. [OK] Proyectos creados y agregados a la solución
 2. [OK] Referencias configuradas
-3. [OK] Estructura CQRS implementada (Commands + Queries)
-4. [OK] Controller con endpoints básicos
+3. [OK] Estructura CQRS implementada (Commands + Queries + Reports)
+4. [OK] Controller con endpoints básicos, queries y reportes
 5. [OK] DbContext extendido con UnitOfWork
-6. [PENDIENTE] Hacer scaffold de la base de datos (Database First)
-7. [PENDIENTE] Implementar repositorios en Infrastructure
-8. [PENDIENTE] Implementar validaciones con FluentValidation
-9. [PENDIENTE] Agregar tests unitarios
+6. [OK] Repositorios implementados (CUD con EF Core, Lectura con Dapper, Reportes con datos hardcodeados)
+7. [PENDIENTE] Hacer scaffold de la base de datos (Database First)
+8. [PENDIENTE] Implementar repositorios de lectura con Dapper real
+9. [PENDIENTE] Implementar validaciones con FluentValidation
+10. [PENDIENTE] Agregar tests unitarios
 
 Fecha de creación: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 "@
