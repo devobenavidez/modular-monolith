@@ -926,22 +926,7 @@ public static class ServiceCollectionExtensions
 
 $infraDI | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Extensions/ServiceCollectionExtensions.cs" -Encoding UTF8
 
-# Sample Entity
-$sampleEntity = @"
-using $RootNamespace.SharedKernel.Common;
 
-namespace $RootNamespace.$ModuleName.Domain.Entities;
-
-public class ${ModuleName}Entity : BaseEntity
-{
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    
-    // TODO: Add domain-specific properties
-}
-"@
-
-$sampleEntity | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Entities/${ModuleName}Entity.cs" -Encoding UTF8
 
 # Sample DTO
 $sampleDto = @"
@@ -996,13 +981,7 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
         // TODO: Validate input data if necessary
         
         // Create new entity
-        var entity = new ${ModuleName}Entity
-        {
-            Id = Guid.NewGuid(),
-            Name = request.Name,
-            Description = request.Description,
-            CreatedAt = DateTime.UtcNow
-        };
+        var entity = ${EntityName}.Create(request.Name, request.Description);
 
         // TODO: Add to repository when implemented
         // await _repository.AddAsync(entity, cancellationToken);
@@ -1171,7 +1150,7 @@ src/Modules/$ModuleName/
 │   ├── DTOs/${ModuleName}Dto.cs
 │   └── AssemblyMarker.cs
 ├── $ApplicationName.$ModuleName.Domain/
-│   └── Entities/${ModuleName}Entity.cs
+│   └── Entities/${EntityName}.cs
 └── $ApplicationName.$ModuleName.Infrastructure/
     ├── Models/
     │   ├── ${ModuleName}DbContext.cs          # ← Base (reemplazado por scaffold)
