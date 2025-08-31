@@ -298,6 +298,8 @@ MiECommerce.Orders.Application/
 ### Orders.Infrastructure (Con DbContext Propio)
 ```
 MiECommerce.Orders.Infrastructure/
+├── Models/                        # 📋 Modelos específicos de infraestructura
+│   └── ModelsPlaceholder.cs       # ⚠️ Eliminar antes de scaffold
 ├── Persistence/
 │   ├── OrdersDbContext.cs         # 🗄️ DbContext específico del módulo
 │   ├── Configurations/
@@ -317,6 +319,22 @@ MiECommerce.Orders.Api/
 │   └── OrdersController.cs        # REST endpoints
 └── Extensions/
     └── ServiceCollectionExtensions.cs  # Configuración del módulo
+```
+
+### 📋 Directorio Models
+
+El directorio `Models/` en cada módulo Infrastructure contiene:
+
+- **ViewModels**: Modelos específicos para vistas o endpoints de lectura
+- **ReportModels**: Modelos para reportes y consultas complejas
+- **IntegrationModels**: Modelos para integraciones externas
+- **DTOs específicos**: Modelos de transferencia de datos de infraestructura
+
+> ⚠️ **Importante**: Al crear un nuevo módulo, se genera automáticamente un archivo `ModelsPlaceholder.cs` en el directorio `Models/`. **Debes eliminar este archivo antes de hacer scaffold de migraciones** para evitar conflictos.
+
+```powershell
+# Eliminar el placeholder antes de crear migraciones
+Remove-Item "src/Modules/Orders/MiECommerce.Orders.Infrastructure/Models/ModelsPlaceholder.cs"
 ```
 
 ## 🗄️ Gestión de Base de Datos por Módulo
@@ -342,7 +360,12 @@ public class OrdersDbContext : DbContext, IUnitOfWork
 
 ### Comandos de Migración por Módulo
 
+> ⚠️ **Recordatorio**: Antes de crear migraciones, elimina el archivo `ModelsPlaceholder.cs` del directorio `Models/` del módulo.
+
 ```powershell
+# Eliminar placeholder antes de crear migraciones
+Remove-Item "src/Modules/Orders/MiECommerce.Orders.Infrastructure/Models/ModelsPlaceholder.cs"
+
 # Crear migración para módulo Orders
 dotnet ef migrations add AddOrdersTable --project src/Modules/Orders/MiECommerce.Orders.Infrastructure --startup-project src/MiECommerce.Api --context OrdersDbContext
 

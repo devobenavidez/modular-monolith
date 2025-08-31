@@ -794,6 +794,25 @@ public static class ${EntityName}Queries
 
 $queries | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/Queries/${EntityName}Queries.cs" -Encoding UTF8
 
+# Crear archivo placeholder en Models para que Visual Studio reconozca el directorio
+$modelsPlaceholder = @"
+// Este archivo se crea para que Visual Studio reconozca el directorio Models
+// Puedes eliminar este archivo cuando agregues tus propios modelos
+
+namespace $RootNamespace.$ModuleName.Infrastructure.Models;
+
+/// <summary>
+/// Placeholder para el directorio Models
+/// </summary>
+public static class ModelsPlaceholder
+{
+    // Este directorio está destinado para modelos específicos de infraestructura
+    // como modelos para vistas, reportes, o integraciones externas
+}
+"@
+
+$modelsPlaceholder | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Models/ModelsPlaceholder.cs" -Encoding UTF8
+
 # DI Extensions para API
 $apiDI = @"
 using Microsoft.Extensions.DependencyInjection;
