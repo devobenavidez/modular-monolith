@@ -1,6 +1,5 @@
 ﻿using __RootNamespace__.Api.Extensions;
 using __RootNamespace__.SharedKernel.Extensions;
-using __RootNamespace__.Users.Api.Extensions;
 using Asp.Versioning.ApiExplorer;
 using Serilog;
 using Prometheus;
@@ -16,7 +15,6 @@ builder.Services.AddApiServices();
 
 // Módulos
 builder.Services.AddSharedKernel(builder.Configuration);
-builder.Services.AddUsersModule(builder.Configuration);
 
 var app = builder.Build();
 
@@ -66,7 +64,6 @@ app.MapHealthChecks("/health");
 app.MapControllers();
 
 // Endpoints de módulos
-app.UseUsersModule();
 
 try
 {

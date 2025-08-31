@@ -264,9 +264,9 @@ public class ${ModuleName}Controller : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Created ${ModuleName.ToLower()} ID</returns>
     [HttpPost]
-    [ProducesResponseType(typeof(Guid), 201)]
+    [ProducesResponseType(typeof(long), 201)]
     [ProducesResponseType(400)]
-    public async Task<ActionResult<Guid>> Create${ModuleName}(
+    public async Task<ActionResult<long>> Create${ModuleName}(
         [FromBody] Create${ModuleName}Command command,
         CancellationToken cancellationToken)
     {
@@ -301,11 +301,11 @@ public class ${ModuleName}Controller : ControllerBase
     /// <param name="id">${ModuleName} ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>${ModuleName} data</returns>
-    [HttpGet("{id:guid}")]
+    [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(${ModuleName}Dto), 200)]
     [ProducesResponseType(404)]
     public async Task<ActionResult<${ModuleName}Dto>> Get${ModuleName}ById(
-        [FromRoute] Guid id,
+        [FromRoute] long id,
         CancellationToken cancellationToken)
     {
         // TODO: Implement GetByIdQuery when available
@@ -356,8 +356,6 @@ namespace $RootNamespace.$ModuleName.Domain.Abstractions;
 
 public interface I${EntityName}Repository
 {
-    Task<${EntityClassName}?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<List<${EntityClassName}>> GetAllAsync(CancellationToken cancellationToken = default);
     Task AddAsync(${EntityClassName} entity, CancellationToken cancellationToken = default);
     void Update(${EntityClassName} entity);
     void Delete(${EntityClassName} entity);
@@ -378,7 +376,7 @@ public interface I${EntityName}ReadRepository
     /// <summary>
     /// Obtiene un ${EntityName.ToLower()} por su ID
     /// </summary>
-    Task<object?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<object?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Obtiene todos los ${EntityName.ToLower()}s
@@ -393,7 +391,7 @@ public interface I${EntityName}ReadRepository
     /// <summary>
     /// Verifica si existe un ${EntityName.ToLower()} con el ID especificado
     /// </summary>
-    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(long id, CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Cuenta el total de ${EntityName.ToLower()}s
@@ -410,43 +408,58 @@ using Microsoft.EntityFrameworkCore;
 using $RootNamespace.$ModuleName.Domain.Entities;
 using $RootNamespace.$ModuleName.Domain.Abstractions;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence;
+using Infrastructure${EntityName} = $RootNamespace.$ModuleName.Infrastructure.Models.${EntityName};
 
 namespace $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
 
+/// <summary>
+/// Repositorio para operaciones CUD (Create, Update, Delete) usando EF Core
+/// Implementa mapeo entre entidad de dominio y modelo de infraestructura
+/// </summary>
 public class ${EntityName}Repository : I${EntityName}Repository
 {
     private readonly ${ModuleName}ExtendedDbContext _context;
-    private readonly DbSet<${EntityClassName}> _entities;
 
     public ${EntityName}Repository(${ModuleName}ExtendedDbContext context)
     {
-        _context = context;
-        _entities = context.Set<${EntityClassName}>();
-    }
-
-    public async Task<${EntityClassName}?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        return await _entities.FindAsync(new object[] { id }, cancellationToken);
-    }
-
-    public async Task<List<${EntityClassName}>> GetAllAsync(CancellationToken cancellationToken = default)
-    {
-        return await _entities.ToListAsync(cancellationToken);
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task AddAsync(${EntityClassName} entity, CancellationToken cancellationToken = default)
     {
-        await _entities.AddAsync(entity, cancellationToken);
+        var model = MapToInfrastructureModel(entity);
+        await _context.AddAsync(model, cancellationToken);
+        
+        // Asignar el ID generado de vuelta a la entidad de dominio
+        entity.Id = model.Id;
     }
 
     public void Update(${EntityClassName} entity)
     {
-        _entities.Update(entity);
+        var model = MapToInfrastructureModel(entity);
+        _context.Update(model);
     }
 
     public void Delete(${EntityName} entity)
     {
-        _entities.Remove(entity);
+        var model = MapToInfrastructureModel(entity);
+        _context.Remove(model);
+    }
+
+    /// <summary>
+    /// Mapea entidad de dominio a modelo de infraestructura
+    /// </summary>
+    private Infrastructure${EntityName} MapToInfrastructureModel(${EntityClassName} entity)
+    {
+        return new Infrastructure${EntityName}
+        {
+            Id = entity.Id,
+            Name = entity.Name,
+            Description = entity.Description,
+            IsActive = true, // Valor por defecto para nuevas entidades
+            CreatedAt = entity.CreatedAt,
+            UpdatedAt = entity.UpdatedAt
+        };
     }
 }
 "@
@@ -475,7 +488,7 @@ public class ${EntityName}ReadRepository : I${EntityName}ReadRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<object?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<object?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
     {
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QueryFirstOrDefaultAsync<dynamic>(
@@ -522,7 +535,7 @@ public class ${EntityName}ReadRepository : I${EntityName}ReadRepository
         return await connection.QueryAsync<dynamic>(${EntityName}Queries.GetByFilter, parameters);
     }
 
-    public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsAsync(long id, CancellationToken cancellationToken = default)
     {
         using var connection = _connectionFactory.CreateConnection();
         var count = await connection.ExecuteScalarAsync<int>(
@@ -559,7 +572,9 @@ public class ${EntityClassName} : BaseEntity
         return new ${EntityName}
         {
             Name = name,
-            Description = description
+            Description = description,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
     }
 
@@ -693,14 +708,12 @@ namespace $RootNamespace.$ModuleName.Application.DTOs;
 /// </summary>
 public class ${EntityName}Dto
 {
-    public Guid Id { get; set; }
+    public long Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
-    public string? CreatedBy { get; set; }
-    public string? UpdatedBy { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }
 "@
 
@@ -744,9 +757,7 @@ public static class ${EntityName}Queries
             Description,
             IsActive,
             CreatedAt,
-            UpdatedAt,
-            CreatedBy,
-            UpdatedBy
+            UpdatedAt
         FROM $($ModuleName.ToLower()).${EntityName}s 
         WHERE Id = @Id AND IsDeleted = false";
 
@@ -757,9 +768,7 @@ public static class ${EntityName}Queries
             Description,
             IsActive,
             CreatedAt,
-            UpdatedAt,
-            CreatedBy,
-            UpdatedBy
+            UpdatedAt
         FROM $($ModuleName.ToLower()).${EntityName}s 
         WHERE IsDeleted = false
         ORDER BY Name";
@@ -771,9 +780,7 @@ public static class ${EntityName}Queries
             Description,
             IsActive,
             CreatedAt,
-            UpdatedAt,
-            CreatedBy,
-            UpdatedBy
+            UpdatedAt
         FROM $($ModuleName.ToLower()).${EntityName}s 
         WHERE IsDeleted = false
         AND (@SearchTerm IS NULL OR 
@@ -787,7 +794,7 @@ public static class ${EntityName}Queries
                 WHEN @SortBy = 'Name' AND @SortDescending = false THEN Name
                 WHEN @SortBy = 'Name' AND @SortDescending = true THEN Name
                 WHEN @SortBy = 'CreatedAt' AND @SortDescending = false THEN CreatedAt::text
-                WHEN @SortBy = 'CreatedAt' AND @SortDescending = true THEN CreatedAt::text
+                WHEN @SortBy = 'Name' AND @SortDescending = true THEN CreatedAt::text
                 ELSE Name
             END
         LIMIT @PageSize OFFSET @Offset";
@@ -805,6 +812,27 @@ public static class ${EntityName}Queries
 "@
 
 $queries | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/Queries/${EntityName}Queries.cs" -Encoding UTF8
+
+# Crear placeholder del modelo en Models
+$modelPlaceholder = @"
+namespace $RootNamespace.$ModuleName.Infrastructure.Models;
+
+/// <summary>
+/// Modelo placeholder para ${EntityName.ToLower()}s
+/// Este archivo será reemplazado cuando ejecutes scaffold de la base de datos
+/// </summary>
+public class ${EntityName}
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+"@
+
+$modelPlaceholder | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Models/${EntityName}.cs" -Encoding UTF8
 
 # Crear archivo placeholder en Models para que Visual Studio reconozca el directorio
 $modelsPlaceholder = @"
@@ -914,7 +942,7 @@ public static class ServiceCollectionExtensions
         // Registrar IUnitOfWork usando el DbContext extendido
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<${ModuleName}ExtendedDbContext>());
 
-        // Registrar repositorios
+        // Registrar repositorios (usar DbContext extendido para operaciones CUD)
         services.AddScoped<I${EntityName}Repository, ${EntityName}Repository>();
         services.AddScoped<I${EntityName}ReadRepository, ${EntityName}ReadRepository>();
 
@@ -933,11 +961,11 @@ $sampleDto = @"
 namespace $RootNamespace.$ModuleName.Application.DTOs;
 
 public record ${ModuleName}Dto(
-    Guid Id,
+    long Id,
     string Name,
     string Description,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime UpdatedAt
 );
 "@
 
@@ -955,7 +983,7 @@ namespace $RootNamespace.$ModuleName.Application.Commands.Create${ModuleName};
 public record Create${ModuleName}Command(
     string Name,
     string Description
-) : IRequest<Guid>;
+) : IRequest<long>;
 "@
 
 $sampleCommand | Out-File -FilePath "$commandDir/Create${ModuleName}Command.cs" -Encoding UTF8
@@ -967,7 +995,7 @@ using $RootNamespace.$ModuleName.Domain.Entities;
 
 namespace $RootNamespace.$ModuleName.Application.Commands.Create${ModuleName};
 
-public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleName}Command, Guid>
+public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleName}Command, long>
 {
     private readonly IUnitOfWork _unitOfWork;
 
@@ -976,7 +1004,7 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<Guid> Handle(Create${ModuleName}Command request, CancellationToken cancellationToken)
+    public async Task<long> Handle(Create${ModuleName}Command request, CancellationToken cancellationToken)
     {
         // TODO: Validate input data if necessary
         
@@ -1039,7 +1067,7 @@ using $RootNamespace.$ModuleName.Domain.Abstractions;
 
 namespace $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}ById;
 
-public record Get${ModuleName}ByIdQuery(Guid Id) : IRequest<${ModuleName}Dto?>;
+public record Get${ModuleName}ByIdQuery(long Id) : IRequest<${ModuleName}Dto?>;
 
 public class Get${ModuleName}ByIdHandler : IRequestHandler<Get${ModuleName}ByIdQuery, ${ModuleName}Dto?>
 {
@@ -1170,6 +1198,8 @@ tests/Unit/$ApplicationName.$ModuleName.Application.Tests/
 - ✅ **Records**: Para commands y DTOs
 - ✅ **Database First**: Preparado para scaffold de base de datos existente
 - ✅ **Doble DbContext**: Base (para scaffold) y Extendido (con UnitOfWork)
+- ✅ **Mapeo de Entidades**: Separación entre entidades de dominio y modelos de infraestructura
+- ✅ **Repositorio CUD**: Solo operaciones Create, Update, Delete con EF Core
 - ✅ **EF Core Tools**: Incluido automáticamente para scaffold y migraciones
 - ✅ **Controller versionado**: Con rutas en minúsculas (api/v1/$($ModuleName.ToLower()))
 - ✅ **Endpoints RESTful**: CREATE, GET (lista), GET (por ID) y Health check
@@ -1183,7 +1213,9 @@ tests/Unit/$ApplicationName.$ModuleName.Application.Tests/
 
 ### **Uso:**
 - **Scaffold y Migraciones**: Usar `${ModuleName}DbContext` (base)
-- **Operaciones de Negocio**: Usar `${ModuleName}ExtendedDbContext` (extendido)
+- **Operaciones CUD**: Usar `${ModuleName}DbContext` (base) con mapeo a entidades de dominio
+- **Operaciones de Negocio con Transacciones**: Usar `${ModuleName}ExtendedDbContext` (extendido)
+- **Operaciones de Lectura**: Usar Dapper a través de `${EntityName}ReadRepository`
 
 ## Para integrar el módulo:
 

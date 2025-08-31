@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\__ApplicationName__.SharedKernel\__ApplicationName__.SharedKernel.csproj" />
-    <ProjectReference Include="..\Modules\Users\__ApplicationName__.Users.Api\__ApplicationName__.Users.Api.csproj" />
   </ItemGroup>
 
 </Project>
