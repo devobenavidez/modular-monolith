@@ -5,11 +5,9 @@ namespace __RootNamespace__.SharedKernel.Common;
 /// </summary>
 public abstract class BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public long Id { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime? UpdatedAt { get; set; }
-    public string? CreatedBy { get; set; }
-    public string? UpdatedBy { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public bool IsDeleted { get; set; } = false;
 
     private readonly List<IDomainEvent> _domainEvents = new();
