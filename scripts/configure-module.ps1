@@ -75,63 +75,157 @@ Write-Host "Configurando Program.cs..." -ForegroundColor Blue
 # Leer el contenido actual
 $programContent = Get-Content $programPath -Raw
 
-# Verificar si ya está configurado
-$usingPattern = "using $RootNamespace.$ModuleName.Api.Extensions;"
-$servicePattern = "builder\.Services\.Add${ModuleName}Module"
-$appPattern = "app\.Use${ModuleName}Module"
+# FUNCIONES MEJORADAS PARA DETECCIÓN Y AGREGADO
 
-if ($programContent -match $usingPattern -and $programContent -match $servicePattern) {
-    Write-Host "El módulo $ModuleName ya está configurado en Program.cs" -ForegroundColor Yellow
-    return
+# Función para verificar si un módulo ya está configurado
+function Test-ModuleConfigured {
+    param([string]$content, [string]$moduleName, [string]$rootNamespace)
+    
+    $usingPattern = [regex]::Escape("using $rootNamespace.$moduleName.Api.Extensions;")
+    $servicePattern = [regex]::Escape("builder.Services.Add${moduleName}Module(builder.Configuration);")
+    $appPattern = [regex]::Escape("app.Use${moduleName}Module();")
+    
+    $hasUsing = $content -match $usingPattern
+    $hasService = $content -match $servicePattern
+    $hasApp = $content -match $appPattern
+    
+    return @{
+        HasUsing = $hasUsing
+        HasService = $hasService
+        HasApp = $hasApp
+        IsFullyConfigured = $hasUsing -and $hasService -and $hasApp
+    }
 }
 
-# Agregar using statement si no existe
-if ($programContent -notmatch $usingPattern) {
-    # Buscar la línea después de los usings existentes
-    $lines = $programContent -split "`n"
-    $usingIndex = -1
+# Función para agregar using statement de forma segura
+function Add-UsingStatement {
+    param([string]$content, [string]$moduleName, [string]$rootNamespace)
     
+    $usingStatement = "using $rootNamespace.$moduleName.Api.Extensions;"
+    
+    # Verificar si ya existe
+    if ($content -match [regex]::Escape($usingStatement)) {
+        Write-Host "Using statement para $moduleName ya existe" -ForegroundColor Yellow
+        return $content
+    }
+    
+    # Dividir en líneas
+    $lines = $content -split "`n"
+    
+    # Encontrar la posición correcta para insertar (después de los usings del proyecto)
+    $insertIndex = -1
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match "^using " -and $lines[$i] -notmatch "using Microsoft\." -and $lines[$i] -notmatch "using System\.") {
-            $usingIndex = $i
+        $line = $lines[$i].Trim()
+        
+        # Buscar después de los usings del proyecto (no de Microsoft/System)
+        if ($line -match "^using " -and $line -notmatch "using Microsoft\." -and $line -notmatch "using System\." -and $line -notmatch "using Asp\." -and $line -notmatch "using Serilog" -and $line -notmatch "using Prometheus") {
+            $insertIndex = $i
         }
     }
     
-    if ($usingIndex -eq -1) {
-        # Si no hay usings personalizados, agregar después del último using
+    # Si no encontramos usings del proyecto, buscar después del último using
+    if ($insertIndex -eq -1) {
         for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match "^using " -and $lines[$i] -match "using Microsoft\.") {
-                $usingIndex = $i
+            $line = $lines[$i].Trim()
+            if ($line -match "^using ") {
+                $insertIndex = $i
             }
         }
     }
     
-    if ($usingIndex -ne -1) {
-        $lines = $lines[0..$usingIndex] + $usingPattern + $lines[($usingIndex + 1)..($lines.Count - 1)]
-        $programContent = $lines -join "`n"
-        Write-Host "Agregado using statement para $ModuleName" -ForegroundColor Green
+    # Insertar el using statement
+    if ($insertIndex -ne -1) {
+        $lines = $lines[0..$insertIndex] + $usingStatement + $lines[($insertIndex + 1)..($lines.Count - 1)]
+        Write-Host "Agregado using statement para $moduleName" -ForegroundColor Green
+        return $lines -join "`n"
     }
+    
+    return $content
 }
 
-# Agregar configuración de servicios
-if ($programContent -notmatch $servicePattern) {
-    # Buscar la línea donde se configuran los servicios
-    $serviceConfigPattern = "builder\.Services\.Add.*Module"
-    if ($programContent -match $serviceConfigPattern) {
-        # Agregar después de la última configuración de módulo
-        $programContent = $programContent -replace "($serviceConfigPattern.*?;)", "`$1`n`n// Configurar módulo $ModuleName`nbuilder.Services.Add${ModuleName}Module(builder.Configuration);"
+# Función para agregar configuración de servicios de forma segura
+function Add-ServiceConfiguration {
+    param([string]$content, [string]$moduleName)
+    
+    $serviceConfig = "builder.Services.Add${moduleName}Module(builder.Configuration);"
+    
+    # Verificar si ya existe
+    if ($content -match [regex]::Escape($serviceConfig)) {
+        Write-Host "Configuración de servicios para $moduleName ya existe" -ForegroundColor Yellow
+        return $content
+    }
+    
+    # Buscar la sección de módulos
+    $moduleSectionPattern = "// Módulos"
+    if ($content -match $moduleSectionPattern) {
+        # Agregar después de la sección de módulos
+        $content = $content -replace "($moduleSectionPattern.*?)(?=`n`n|$)", "`$1`n$serviceConfig"
+        Write-Host "Agregada configuración de servicios para $moduleName" -ForegroundColor Green
     } else {
-        # Buscar después de AddControllers o similar
-        $programContent = $programContent -replace "(builder\.Services\.AddControllers.*?;)", "`$1`n`n// Configurar módulo $ModuleName`nbuilder.Services.Add${ModuleName}Module(builder.Configuration);"
+        # Si no hay sección de módulos, buscar después de AddSharedKernel
+        $sharedKernelPattern = "builder\.Services\.AddSharedKernel\(builder\.Configuration\);"
+        if ($content -match $sharedKernelPattern) {
+            $content = $content -replace "($sharedKernelPattern)", "`$1`n$serviceConfig"
+            Write-Host "Agregada configuración de servicios para $moduleName" -ForegroundColor Green
+        } else {
+            Write-Host "⚠️ No se pudo encontrar ubicación para agregar configuración de servicios" -ForegroundColor Yellow
+        }
     }
-    Write-Host "Agregada configuración de servicios para $ModuleName" -ForegroundColor Green
+    
+    return $content
 }
 
-# Agregar configuración del pipeline si no existe
-if ($programContent -notmatch $appPattern) {
-    # Buscar después de app.UseRouting o similar
-    $programContent = $programContent -replace "(app\.UseRouting.*?;)", "`$1`n`n// Configurar pipeline del módulo $ModuleName`napp.Use${ModuleName}Module();"
-    Write-Host "Agregada configuración del pipeline para $ModuleName" -ForegroundColor Green
+# Función para agregar configuración del pipeline de forma segura
+function Add-PipelineConfiguration {
+    param([string]$content, [string]$moduleName)
+    
+    $pipelineConfig = "app.Use${moduleName}Module();"
+    
+    # Verificar si ya existe
+    if ($content -match [regex]::Escape($pipelineConfig)) {
+        Write-Host "Configuración del pipeline para $moduleName ya existe" -ForegroundColor Yellow
+        return $content
+    }
+    
+    # Buscar la sección de endpoints de módulos
+    $endpointsPattern = "// Endpoints de módulos"
+    if ($content -match $endpointsPattern) {
+        # Agregar después de la sección de endpoints
+        $content = $content -replace "($endpointsPattern.*?)(?=`n`n|$)", "`$1`n$pipelineConfig"
+        Write-Host "Agregada configuración del pipeline para $moduleName" -ForegroundColor Green
+    } else {
+        # Si no hay sección de endpoints, buscar después de MapControllers
+        $mapControllersPattern = "app\.MapControllers\(\);"
+        if ($content -match $mapControllersPattern) {
+            $content = $content -replace "($mapControllersPattern)", "`$1`n`n// Endpoints de módulos`n$pipelineConfig"
+            Write-Host "Agregada configuración del pipeline para $moduleName" -ForegroundColor Green
+        } else {
+            Write-Host "⚠️ No se pudo encontrar ubicación para agregar configuración del pipeline" -ForegroundColor Yellow
+        }
+    }
+    
+    return $content
+}
+
+# VERIFICAR SI EL MÓDULO YA ESTÁ CONFIGURADO
+$moduleStatus = Test-ModuleConfigured $programContent $ModuleName $RootNamespace
+
+if ($moduleStatus.IsFullyConfigured) {
+    Write-Host "El módulo $ModuleName ya está completamente configurado en Program.cs" -ForegroundColor Yellow
+    return
+}
+
+# AGREGAR CONFIGURACIONES FALTANTES
+if (-not $moduleStatus.HasUsing) {
+    $programContent = Add-UsingStatement $programContent $ModuleName $RootNamespace
+}
+
+if (-not $moduleStatus.HasService) {
+    $programContent = Add-ServiceConfiguration $programContent $ModuleName
+}
+
+if (-not $moduleStatus.HasApp) {
+    $programContent = Add-PipelineConfiguration $programContent $ModuleName
 }
 
 # Guardar el archivo actualizado
