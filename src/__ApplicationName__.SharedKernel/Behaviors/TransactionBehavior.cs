@@ -35,14 +35,14 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
         try
         {
             await _unitOfWork.BeginTransactionAsync();
-            
+
             var response = await next();
-            
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync();
-            
+
             _logger.LogInformation("Transacción completada para: {RequestName}", requestName);
-            
+
             return response;
         }
         catch (Exception ex)
