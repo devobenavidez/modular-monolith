@@ -1,10 +1,12 @@
 using FluentValidation;
 using MediatR;
+using __RootNamespace__.SharedKernel.Exceptions.Business;
 
 namespace __RootNamespace__.SharedKernel.Behaviors;
 
 /// <summary>
-/// Behavior de MediatR para validación automática usando FluentValidation
+/// Behavior de MediatR para validación automática usando FluentValidation.
+/// Convierte errores de FluentValidation en ValidationException personalizada para Problem Details.
 /// </summary>
 public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -28,10 +30,11 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
             var failures = validationResults
                 .Where(r => r.Errors.Any())
                 .SelectMany(r => r.Errors)
-                .ToList();
-
-            if (failures.Any())
-                throw new ValidationException(failures);
+                .ToList();            if (failures.Any())
+            {
+                // Usar nuestra ValidationException personalizada que se convierte en Problem Details
+                throw new Exceptions.Business.ValidationException($"Validation failed for {typeof(TRequest).Name}", failures);
+            }
         }
 
         return await next();
