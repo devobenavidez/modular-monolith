@@ -48,6 +48,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSerilogRequestLogging();
+
+// Manejo global de excepciones (debe ir temprano en el pipeline)
+app.UseGlobalExceptionHandler();
+
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthentication();

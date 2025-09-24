@@ -18,12 +18,32 @@ public static class ServiceCollectionExtensions
         {
             // Configurar nombrado de rutas en minúsculas
             options.Conventions.Add(new RouteTokenTransformerConvention(new KebabCaseParameterTransformer()));
-        })
-        .AddJsonOptions(options =>
+        })        .AddJsonOptions(options =>
         {
             // Configurar JSON para usar camelCase
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.JsonSerializerOptions.WriteIndented = true;
+        });
+
+        // Configurar Problem Details
+        services.AddProblemDetails(options =>
+        {
+            // Personalizar el comportamiento de Problem Details
+            options.CustomizeProblemDetails = (context) =>
+            {
+                // Agregar información común a todos los Problem Details
+                context.ProblemDetails.Instance = context.HttpContext.Request.Path;
+                context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+                context.ProblemDetails.Extensions["timestamp"] = DateTime.UtcNow;
+                
+                // Agregar información del usuario si está autenticado
+                if (context.HttpContext.User.Identity?.IsAuthenticated == true)
+                {
+                    var userId = context.HttpContext.User.FindFirst("sub")?.Value ?? 
+                                context.HttpContext.User.FindFirst("id")?.Value ?? "unknown";
+                    context.ProblemDetails.Extensions["userId"] = userId;
+                }
+            };
         });
 
         services.AddEndpointsApiExplorer();
