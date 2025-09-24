@@ -89,6 +89,7 @@ $directories = @(
     "$modulePath/$ApplicationName.$ModuleName.Domain/ValueObjects",
     "$modulePath/$ApplicationName.$ModuleName.Domain/Events",
     "$modulePath/$ApplicationName.$ModuleName.Domain/Abstractions",
+    "$modulePath/$ApplicationName.$ModuleName.Domain/Exceptions",
     "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Models",
     "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/Configurations",
     "$modulePath/$ApplicationName.$ModuleName.Infrastructure/Persistence/Repositories",
@@ -146,10 +147,9 @@ $applicationCsproj = @"
   <ItemGroup>
     <!-- Los paquetes de MediatR y FluentValidation se incluyen automáticamente desde Directory.Build.props -->
   </ItemGroup>
-  
-  <ItemGroup>
+    <ItemGroup>
     <ProjectReference Include="..\$ApplicationName.$ModuleName.Domain\$ApplicationName.$ModuleName.Domain.csproj" />
-    <ProjectReference Include="..\..\..\$ApplicationName.SharedKernel\$ApplicationName.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\__ApplicationName__.SharedKernel\__ApplicationName__.SharedKernel.csproj" />
   </ItemGroup>
 
 </Project>
@@ -168,9 +168,8 @@ $domainCsproj = @"
     <RootNamespace>$RootNamespace.$ModuleName.Domain</RootNamespace>
     <AssemblyName>$ApplicationName.$ModuleName.Domain</AssemblyName>
   </PropertyGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\$ApplicationName.SharedKernel\$ApplicationName.SharedKernel.csproj" />
+    <ItemGroup>
+    <ProjectReference Include="..\..\..\__ApplicationName__.SharedKernel\__ApplicationName__.SharedKernel.csproj" />
   </ItemGroup>
 
 </Project>
@@ -193,10 +192,9 @@ $infrastructureCsproj = @"
     <!-- Los paquetes de EF Core y Dapper se incluyen automáticamente desde Directory.Build.props -->
   </ItemGroup>
   
-  <ItemGroup>
-    <ProjectReference Include="..\$ApplicationName.$ModuleName.Domain\$ApplicationName.$ModuleName.Domain.csproj" />
+  <ItemGroup>    <ProjectReference Include="..\$ApplicationName.$ModuleName.Domain\$ApplicationName.$ModuleName.Domain.csproj" />
     <ProjectReference Include="..\$ApplicationName.$ModuleName.Application\$ApplicationName.$ModuleName.Application.csproj" />
-    <ProjectReference Include="..\..\..\$ApplicationName.SharedKernel\$ApplicationName.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\__ApplicationName__.SharedKernel\__ApplicationName__.SharedKernel.csproj" />
   </ItemGroup>
 
 </Project>
@@ -282,9 +280,7 @@ public class ${ModuleName}Controller : ControllerBase
     public ${ModuleName}Controller(IMediator mediator)
     {
         _mediator = mediator;
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// Create a new ${ModuleName.ToLower()}
     /// </summary>
     /// <param name="command">${ModuleName} data to create</param>
@@ -293,19 +289,13 @@ public class ${ModuleName}Controller : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(long), 201)]
     [ProducesResponseType(400)]
+    [ProducesResponseType(422)]
     public async Task<ActionResult<long>> Create${ModuleName}(
         [FromBody] Create${ModuleName}Command command,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var id = await _mediator.Send(command, cancellationToken);
-            return CreatedAtAction(nameof(Get${ModuleName}s), new { id }, id);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var id = await _mediator.Send(command, cancellationToken);
+        return CreatedAtAction(nameof(Get${ModuleName}ById), new { id }, id);
     }
 
     /// <summary>
@@ -320,9 +310,7 @@ public class ${ModuleName}Controller : ControllerBase
         var query = new Get${ModuleName}sQuery();
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// Get a ${ModuleName.ToLower()} by ID
     /// </summary>
     /// <param name="id">${ModuleName} ID</param>
@@ -335,20 +323,13 @@ public class ${ModuleName}Controller : ControllerBase
         [FromRoute] long id,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var query = new Get${ModuleName}ByIdQuery(id);
-            var result = await _mediator.Send(query, cancellationToken);
+        var query = new Get${ModuleName}ByIdQuery(id);
+        var result = await _mediator.Send(query, cancellationToken);
+        
+        if (result == null)
+            return NotFound();
             
-            if (result == null)
-                return NotFound(new { message = $"${ModuleName} with ID {id} not found" });
-                
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        return Ok(result);
     }
 
     /// <summary>
@@ -371,22 +352,14 @@ public class ${ModuleName}Controller : ControllerBase
     /// Get ${ModuleName.ToLower()} report with additional data
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>${ModuleName} report data</returns>
-    [HttpGet("report")]
+    /// <returns>${ModuleName} report data</returns>    [HttpGet("report")]
     [ProducesResponseType(typeof(IEnumerable<${EntityName}ReportDto>), 200)]
     public async Task<ActionResult<IEnumerable<${EntityName}ReportDto>>> Get${ModuleName}Report(CancellationToken cancellationToken)
     {
-        try
-        {
-            var query = new Get${ModuleName}ReportQuery();
-            var result = await _mediator.Send(query, cancellationToken);
-            
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var query = new Get${ModuleName}ReportQuery();
+        var result = await _mediator.Send(query, cancellationToken);
+        
+        return Ok(result);
     }
 }
 "@
@@ -479,6 +452,7 @@ using Microsoft.EntityFrameworkCore;
 using $RootNamespace.$ModuleName.Domain.Entities;
 using $RootNamespace.$ModuleName.Domain.Abstractions;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence;
+using $RootNamespace.$ModuleName.Domain.Exceptions;
 using Infrastructure${EntityName} = $RootNamespace.$ModuleName.Infrastructure.Models.${EntityName};
 
 namespace $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
@@ -498,23 +472,44 @@ public class ${EntityName}Repository : I${EntityName}Repository
 
     public async Task AddAsync(${EntityClassName} entity, CancellationToken cancellationToken = default)
     {
-        var model = MapToInfrastructureModel(entity);
-        await _context.AddAsync(model, cancellationToken);
-        
-        // Asignar el ID generado de vuelta a la entidad de dominio
-        entity.Id = model.Id;
+        try
+        {
+            var model = MapToInfrastructureModel(entity);
+            await _context.AddAsync(model, cancellationToken);
+            
+            // Asignar el ID generado de vuelta a la entidad de dominio
+            entity.Id = model.Id;
+        }
+        catch (Exception ex)
+        {
+            throw new ${ModuleName}DatabaseException(`"Error adding ${EntityName.ToLower()} to database`", ex);
+        }
     }
 
     public void Update(${EntityClassName} entity)
     {
-        var model = MapToInfrastructureModel(entity);
-        _context.Update(model);
+        try
+        {
+            var model = MapToInfrastructureModel(entity);
+            _context.Update(model);
+        }
+        catch (Exception ex)
+        {
+            throw new ${ModuleName}DatabaseException(`"Error updating ${EntityName.ToLower()} in database`", ex);
+        }
     }
 
     public void Delete(${EntityName} entity)
     {
-        var model = MapToInfrastructureModel(entity);
-        _context.Remove(model);
+        try
+        {
+            var model = MapToInfrastructureModel(entity);
+            _context.Remove(model);
+        }
+        catch (Exception ex)
+        {
+            throw new ${ModuleName}DatabaseException(`"Error deleting ${EntityName.ToLower()} from database`", ex);
+        }
     }
 
     /// <summary>
@@ -545,7 +540,8 @@ using $RootNamespace.$ModuleName.Application.Interfaces;
 using $RootNamespace.$ModuleName.Application.DTOs;
 using $RootNamespace.$ModuleName.Application.DTOs.Reports;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence.Queries;
-using $RootNamespace.SharedKernel.Interfaces;
+using __RootNamespace__.SharedKernel.Interfaces;
+using $RootNamespace.$ModuleName.Domain.Exceptions;
 
 namespace $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
 
@@ -560,76 +556,114 @@ public class ${EntityName}ReadRepository : I${EntityName}ReadRepository
 
     public ${EntityName}ReadRepository(IDapperConnectionFactory connectionFactory)
     {
-        _connectionFactory = connectionFactory;
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
 
     public async Task<${ModuleName}Dto?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
     {
-        // TODO: Implementar con Dapper cuando tengas la base de datos
-        // Por ahora retornar datos hardcodeados para pruebas
-        
-        await Task.Delay(100, cancellationToken); // Simular operación async
-        
-        // Simular búsqueda por ID
-        if (id == 1)
+        try
         {
-            return new ${ModuleName}Dto
+            // TODO: Implementar con Dapper cuando tengas la base de datos
+            // using var connection = await _connectionFactory.CreateConnectionAsync();
+            // var result = await connection.QuerySingleOrDefaultAsync<${ModuleName}Dto>(
+            //     ${EntityName}Queries.GetById, new { Id = id });
+            // return result;
+            
+            // Por ahora retornar datos hardcodeados para pruebas
+            await Task.Delay(100, cancellationToken); // Simular operación async
+            
+            // Simular búsqueda por ID
+            if (id == 1)
             {
-                Id = 1L,
-                Name = "Producto de Prueba 1",
-                Description = "Descripción del producto de prueba 1",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow.AddDays(-30),
-                UpdatedAt = DateTime.UtcNow.AddDays(-5)
+                return new ${ModuleName}Dto
+                {
+                    Id = 1L,
+                    Name = "Producto de Prueba 1",
+                    Description = "Descripción del producto de prueba 1",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow.AddDays(-30),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-5)
+                };
+            }
+            
+            // Return null - let the caller decide to throw NotFoundException or return null
+            return null;
+        }
+        catch (Exception ex) when (!(ex is ${EntityName}NotFoundException))
+        {
+            throw new ${ModuleName}InfrastructureException(`"Error retrieving ${EntityName.ToLower()} with ID {id}`", ex);
+        }
+    }    public async Task<IEnumerable<${ModuleName}Dto>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // TODO: Implementar con Dapper cuando tengas la base de datos
+            // using var connection = await _connectionFactory.CreateConnectionAsync();
+            // var result = await connection.QueryAsync<${ModuleName}Dto>(${EntityName}Queries.GetAll);
+            // return result;
+            
+            // Por ahora retornar datos hardcodeados para pruebas
+            await Task.Delay(100, cancellationToken); // Simular operación async
+            
+            return new List<${ModuleName}Dto>
+            {
+                new ${ModuleName}Dto
+                {
+                    Id = 1L,
+                    Name = "Producto de Prueba 1",
+                    Description = "Descripción del producto de prueba 1",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow.AddDays(-30),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-5)
+                },
+                new ${ModuleName}Dto
+                {
+                    Id = 2L,
+                    Name = "Producto de Prueba 2",
+                    Description = "Descripción del producto de prueba 2",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow.AddDays(-25),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-3)
+                }
             };
         }
-        
-        return null; // No encontrado
-    }
-
-    public async Task<IEnumerable<${ModuleName}Dto>> GetAllAsync(CancellationToken cancellationToken = default)
-    {
-        // TODO: Implementar con Dapper cuando tengas la base de datos
-        // Por ahora retornar datos hardcodeados para pruebas
-        
-        await Task.Delay(100, cancellationToken); // Simular operación async
-        
-        return new List<${ModuleName}Dto>
+        catch (Exception ex)
         {
-            new ${ModuleName}Dto
-            {
-                Id = 1L,
-                Name = "Producto de Prueba 1",
-                Description = "Descripción del producto de prueba 1",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow.AddDays(-30),
-                UpdatedAt = DateTime.UtcNow.AddDays(-5)
-            },
-            new ${ModuleName}Dto
-            {
-                Id = 2L,
-                Name = "Producto de Prueba 2",
-                Description = "Descripción del producto de prueba 2",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow.AddDays(-25),
-                UpdatedAt = DateTime.UtcNow.AddDays(-3)
-            }
-        };
+            throw new ${ModuleName}InfrastructureException("Error retrieving all ${EntityName.ToLower()}s", ex);
+        }
     }
 
     public async Task<IEnumerable<${ModuleName}Dto>> GetByFilterAsync(object filter, CancellationToken cancellationToken = default)
     {
-        // TODO: Implementar filtros cuando tengas la base de datos
-        // Por ahora retornar el mismo resultado que GetAllAsync
-        return await GetAllAsync(cancellationToken);
+        try
+        {
+            // TODO: Implementar filtros cuando tengas la base de datos
+            // Por ahora retornar el mismo resultado que GetAllAsync
+            return await GetAllAsync(cancellationToken);
+        }
+        catch (Exception ex) when (!(ex is ${ModuleName}InfrastructureException))
+        {
+            throw new ${ModuleName}InfrastructureException("Error filtering ${EntityName.ToLower()}s", ex);
+        }
     }
 
     public async Task<bool> ExistsAsync(long id, CancellationToken cancellationToken = default)
     {
-        // TODO: Implementar con Dapper cuando tengas la base de datos
-        // Por ahora retornar datos hardcodeados para pruebas
-        await Task.Delay(100, cancellationToken); // Simular operación async
-        return id == 1 || id == 2; // Solo existen los IDs 1 y 2
+        try
+        {
+            // TODO: Implementar con Dapper cuando tengas la base de datos
+            // using var connection = await _connectionFactory.CreateConnectionAsync();
+            // var result = await connection.QuerySingleAsync<int>(${EntityName}Queries.Exists, new { Id = id });
+            // return result > 0;
+            
+            // Por ahora retornar datos hardcodeados para pruebas
+            await Task.Delay(100, cancellationToken); // Simular operación async
+            return id == 1 || id == 2; // Solo existen los IDs 1 y 2
+        }
+        catch (Exception ex)
+        {
+            throw new ${ModuleName}InfrastructureException(`"Error checking if ${EntityName.ToLower()} with ID {id} exists`", ex);
+        }
     }
 
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
@@ -704,7 +738,7 @@ $readRepositoryImplementation | Out-File -FilePath "$modulePath/$ApplicationName
 
 # Crear entidad básica en Domain
 $entity = @"
-using $RootNamespace.SharedKernel.Common;
+using __RootNamespace__.SharedKernel.Common;
 
 namespace $RootNamespace.$ModuleName.Domain.Entities;
 
@@ -736,6 +770,370 @@ public class ${EntityClassName} : BaseEntity
 "@
 
 $entity | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Entities/${EntityName}.cs" -Encoding UTF8
+
+# ============================================================================
+# PHASE 3: GENERAR EXCEPCIONES ESPECÍFICAS DEL MÓDULO
+# ============================================================================
+Write-Host "Generando excepciones específicas del módulo..." -ForegroundColor Cyan
+
+# Función para generar prefijo de error basado en el nombre del módulo
+function Get-ErrorPrefix {
+    param([string]$ModuleName)
+    
+    # Extraer las primeras 3 letras del módulo y convertir a mayúsculas
+    $prefix = $ModuleName.Substring(0, [Math]::Min(3, $ModuleName.Length)).ToUpper()
+    
+    # Si es muy corto, rellenar con números
+    while ($prefix.Length -lt 3) {
+        $prefix += "0"
+    }
+    
+    return $prefix
+}
+
+$errorPrefix = Get-ErrorPrefix -ModuleName $ModuleName
+
+Write-Host "✅ Prefijo de errores del módulo: $errorPrefix (ej. ${errorPrefix}001)" -ForegroundColor Green
+
+# Generar excepciones de dominio específicas del módulo
+$domainNotFoundExceptionTemplate = @"
+using __RootNamespace__.SharedKernel.Exceptions.Application;
+
+namespace $RootNamespace.$ModuleName.Domain.Exceptions;
+
+/// <summary>
+/// Excepción lanzada cuando no se encuentra un ${EntityName.ToLower()}
+/// </summary>
+public class ${EntityName}NotFoundException : NotFoundException
+{    public ${EntityName}NotFoundException(long id) 
+        : base(`"${EntityName} with ID {id} was not found`")
+    {
+    }
+
+    public ${EntityName}NotFoundException(string identifier) 
+        : base(`"${EntityName} with identifier '{identifier}' was not found`")
+    {
+    }
+}
+"@
+
+$domainValidationExceptionTemplate = @"
+using __RootNamespace__.SharedKernel.Exceptions.Business;
+
+namespace $RootNamespace.$ModuleName.Domain.Exceptions;
+
+/// <summary>
+/// Excepción de validación específica para ${EntityName.ToLower()}s
+/// </summary>
+public class ${EntityName}ValidationException : ValidationException
+{    public ${EntityName}ValidationException(string fieldName, string message) 
+        : base(`"${EntityName} validation failed: {message}`")
+    {
+        ValidationErrors.Add(fieldName, new[] { message });
+    }
+
+    public ${EntityName}ValidationException(Dictionary<string, string[]> validationErrors) 
+        : base(`"${EntityName} validation failed with multiple errors`", validationErrors)
+    {
+    }
+}
+"@
+
+$domainBusinessRuleExceptionTemplate = @"
+using __RootNamespace__.SharedKernel.Exceptions.Business;
+
+namespace $RootNamespace.$ModuleName.Domain.Exceptions;
+
+/// <summary>
+/// Excepción para reglas de negocio específicas de ${EntityName.ToLower()}s
+/// </summary>
+public class ${EntityName}BusinessRuleException : BusinessRuleException
+{    public ${EntityName}BusinessRuleException(string rule, string message) 
+        : base(rule, `"${EntityName} business rule violation: {message}`")
+    {
+    }
+
+    public static ${EntityName}BusinessRuleException CannotBeDeleted(long id, string reason)
+        => new(`"CannotDelete`", `"${EntityName} with ID {id} cannot be deleted: {reason}`");
+
+    public static ${EntityName}BusinessRuleException InvalidStatus(string currentStatus, string targetStatus)
+        => new(`"InvalidStatusTransition`", `"Cannot change ${EntityName.ToLower()} status from {currentStatus} to {targetStatus}`");
+
+    public static ${EntityName}BusinessRuleException DuplicateName(string name)
+        => new(`"DuplicateName`", `"${EntityName} with name '{name}' already exists`");
+}
+"@
+
+$infrastructureExceptionTemplate = @"
+using __RootNamespace__.SharedKernel.Exceptions.Technical;
+
+namespace $RootNamespace.$ModuleName.Domain.Exceptions;
+
+/// <summary>
+/// Excepción de infraestructura específica para el módulo ${ModuleName}
+/// </summary>
+public class ${ModuleName}InfrastructureException : InfrastructureException
+{    public ${ModuleName}InfrastructureException(string message) 
+        : base(`"${ModuleName} infrastructure error: {message}`")
+    {
+    }
+
+    public ${ModuleName}InfrastructureException(string message, Exception innerException) 
+        : base(`"${ModuleName} infrastructure error: {message}`", innerException)
+    {
+    }
+
+    public static ${ModuleName}InfrastructureException DatabaseConnectionFailed(string details)
+        => new(`"Failed to connect to ${ModuleName.ToLower()} database: {details}`");
+
+    public static ${ModuleName}InfrastructureException ExternalServiceUnavailable(string serviceName)
+        => new(`"External service '{serviceName}' required by ${ModuleName} is unavailable`");
+}
+"@
+
+$databaseExceptionTemplate = @"
+using __RootNamespace__.SharedKernel.Exceptions.Technical;
+
+namespace $RootNamespace.$ModuleName.Domain.Exceptions;
+
+/// <summary>
+/// Excepción de base de datos específica para el módulo ${ModuleName}
+/// </summary>
+public class ${ModuleName}DatabaseException : DatabaseException
+{    public ${ModuleName}DatabaseException(string message) 
+        : base(`"${ModuleName} database error: {message}`")
+    {
+    }
+
+    public ${ModuleName}DatabaseException(string message, Exception innerException) 
+        : base(`"${ModuleName} database error: {message}`", innerException)
+    {
+    }
+
+    public static ${ModuleName}DatabaseException ConcurrencyConflict(string entity, long id)
+        => new(`"Concurrency conflict detected for {entity} with ID {id} in ${ModuleName} module`");
+
+    public static ${ModuleName}DatabaseException ConstraintViolation(string constraint, string details)
+        => new(`"Database constraint '{constraint}' violated in ${ModuleName} module: {details}`");
+}
+"@
+
+# Escribir las excepciones específicas del módulo
+$domainNotFoundExceptionTemplate | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/${EntityName}NotFoundException.cs" -Encoding UTF8
+$domainValidationExceptionTemplate | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/${EntityName}ValidationException.cs" -Encoding UTF8
+$domainBusinessRuleExceptionTemplate | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/${EntityName}BusinessRuleException.cs" -Encoding UTF8
+$infrastructureExceptionTemplate | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/${ModuleName}InfrastructureException.cs" -Encoding UTF8
+$databaseExceptionTemplate | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/${ModuleName}DatabaseException.cs" -Encoding UTF8
+
+Write-Host "✅ Excepciones del módulo creadas:" -ForegroundColor Green
+Write-Host "   - ${EntityName}NotFoundException (${errorPrefix}001-${errorPrefix}002)" -ForegroundColor Yellow
+Write-Host "   - ${EntityName}ValidationException (${errorPrefix}003-${errorPrefix}004)" -ForegroundColor Yellow
+Write-Host "   - ${EntityName}BusinessRuleException (${errorPrefix}005)" -ForegroundColor Yellow
+Write-Host "   - ${ModuleName}InfrastructureException (${errorPrefix}006-${errorPrefix}007)" -ForegroundColor Yellow
+Write-Host "   - ${ModuleName}DatabaseException (${errorPrefix}008-${errorPrefix}009)" -ForegroundColor Yellow
+
+# Crear ejemplo de uso de las excepciones en un archivo README para el módulo
+$exceptionUsageExample = @"
+# Excepciones del Módulo ${ModuleName}
+
+Este módulo implementa un sistema centralizado de manejo de excepciones con códigos de error únicos.
+
+## Códigos de Error del Módulo
+
+| Código | Excepción | Descripción |
+|--------|-----------|-------------|
+| ${errorPrefix}001 | ${EntityName}NotFoundException | ${EntityName} no encontrado por ID |
+| ${errorPrefix}002 | ${EntityName}NotFoundException | ${EntityName} no encontrado por identificador |
+| ${errorPrefix}003 | ${EntityName}ValidationException | Error de validación de campo único |
+| ${errorPrefix}004 | ${EntityName}ValidationException | Error de validación múltiples campos |
+| ${errorPrefix}005 | ${EntityName}BusinessRuleException | Violación de regla de negocio |
+| ${errorPrefix}006 | ${ModuleName}InfrastructureException | Error de infraestructura |
+| ${errorPrefix}007 | ${ModuleName}InfrastructureException | Error de infraestructura con excepción interna |
+| ${errorPrefix}008 | ${ModuleName}DatabaseException | Error de base de datos |
+| ${errorPrefix}009 | ${ModuleName}DatabaseException | Error de base de datos con excepción interna |
+
+## Ejemplos de Uso
+
+### En el Dominio
+``````csharp
+// En ${EntityName}.cs
+public void Update(string name, string description)
+{
+    if (string.IsNullOrWhiteSpace(name))
+        throw new ${EntityName}ValidationException("name", "Name cannot be empty");
+        
+    if (name.Length > 100)
+        throw new ${EntityName}ValidationException("name", "Name cannot exceed 100 characters");
+    
+    Name = name;
+    Description = description;
+    UpdatedAt = DateTime.UtcNow;
+}
+
+public void Delete()
+{
+    if (IsActive)
+        throw ${EntityName}BusinessRuleException.CannotBeDeleted(Id, "Cannot delete active ${EntityName.ToLower()}");
+}
+``````
+
+### En Repositorios
+``````csharp
+// En ${EntityName}ReadRepository.cs
+public async Task<${ModuleName}Dto?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+{
+    try
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync();
+        var result = await connection.QuerySingleOrDefaultAsync<${ModuleName}Dto>(
+            ${EntityName}Queries.GetById, new { Id = id });
+        return result;
+    }
+    catch (Exception ex) when (!(ex is ${EntityName}NotFoundException))
+    {
+        throw new ${ModuleName}InfrastructureException(`"Error retrieving ${EntityName.ToLower()} with ID {id}`", ex);
+    }
+}
+
+// En ${EntityName}Repository.cs
+public async Task AddAsync(${EntityName} entity, CancellationToken cancellationToken = default)
+{
+    try
+    {
+        var model = MapToInfrastructureModel(entity);
+        await _context.AddAsync(model, cancellationToken);
+        entity.Id = model.Id;
+    }
+    catch (Exception ex)
+    {
+        throw new ${ModuleName}DatabaseException(`"Error adding ${EntityName.ToLower()} to database`", ex);
+    }
+}
+``````
+
+### En Handlers
+``````csharp
+// En Create${ModuleName}CommandHandler.cs - Ya implementado con manejo completo
+public async Task<long> Handle(Create${ModuleName}Command request, CancellationToken cancellationToken)
+{
+    try
+    {
+        ValidateCommand(request);
+        var entity = ${EntityName}.Create(request.Name, request.Description);
+        await _repository.AddAsync(entity, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return entity.Id;
+    }
+    catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+    {
+        throw ${EntityName}BusinessRuleException.DuplicateName(request.Name);
+    }
+    catch (DbUpdateException ex)
+    {
+        throw new ${ModuleName}DatabaseException("Failed to create ${EntityName.ToLower()}", ex);
+    }
+    catch (Exception ex) when (!(ex is BaseException))
+    {
+        throw new ${ModuleName}InfrastructureException("Unexpected error creating ${EntityName.ToLower()}", ex);
+    }
+}
+
+// En Get${ModuleName}ByIdHandler.cs - Con opciones configurables
+public async Task<${ModuleName}Dto?> Handle(Get${ModuleName}ByIdQuery request, CancellationToken cancellationToken)
+{
+    var result = await _readRepository.GetByIdAsync(request.Id, cancellationToken);
+    
+    // OPCIÓN 1: Retornar null y dejar que el controller maneje 404 (implementado)
+    return result;
+    
+    // OPCIÓN 2: Lanzar excepción para manejo por middleware global (descomenta si prefieres esto)
+    // if (result == null)
+    //     throw new ${EntityName}NotFoundException(request.Id);
+    // return result;
+}
+``````
+
+### En Controllers
+``````csharp
+// Controllers limpios sin try-catch - Las excepciones se manejan automáticamente
+[HttpPost]
+public async Task<ActionResult<long>> Create${ModuleName}([FromBody] Create${ModuleName}Command command, CancellationToken cancellationToken)
+{
+    // Sin try-catch - el middleware global maneja todas las excepciones
+    var id = await _mediator.Send(command, cancellationToken);
+    return CreatedAtAction(nameof(Get${ModuleName}ById), new { id }, id);
+}
+
+[HttpGet("{id:long}")]
+public async Task<ActionResult<${ModuleName}Dto>> Get${ModuleName}ById([FromRoute] long id, CancellationToken cancellationToken)
+{
+    var query = new Get${ModuleName}ByIdQuery(id);
+    var result = await _mediator.Send(query, cancellationToken);
+    
+    // Controller maneja null cuando query handler no lanza excepción
+    if (result == null)
+        return NotFound(); // Simple 404 sin detalles
+        
+    return Ok(result);
+}
+``````
+
+## Respuesta HTTP Esperada
+
+Cuando se lanza una excepción, el middleware global la convertirá a RFC 7807 Problem Details:
+
+``````json
+{
+    "type": "https://httpstatuses.com/404",
+    "title": "Resource Not Found",
+    "status": 404,
+    "detail": "${EntityName} with ID 123 was not found",
+    "instance": "/api/v1/${ModuleName.ToLower()}/123",
+    "errorCode": "${errorPrefix}001",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "traceId": "0HN7SPBOG4QG2:00000001"
+}
+``````
+
+## Beneficios del Sistema Implementado
+
+1. **Trazabilidad**: Cada error tiene un código único (${errorPrefix}XXX)
+2. **Consistencia**: Todas las excepciones siguen el mismo patrón
+3. **RFC 7807**: Respuestas estructuradas y estándar
+4. **Logging**: Automático con niveles apropiados
+5. **Debugging**: Fácil identificación del módulo origen
+6. **Controllers Limpios**: Sin boilerplate de try-catch
+7. **Flexibilidad**: Opciones configurables en query handlers
+
+## Estrategias de Manejo
+
+### Nivel de Repositorio
+- **ReadRepository**: Protege contra errores de infraestructura, permite null para "no encontrado"
+- **WriteRepository**: Protege todas las operaciones CUD con excepciones específicas
+
+### Nivel de Handler  
+- **CommandHandler**: Manejo completo con validación, reglas de negocio y conversión de excepciones
+- **QueryHandler**: Flexible - puede retornar null o lanzar NotFoundException según necesidad
+
+### Nivel de Controller
+- **Sin try-catch**: Confianza total en el middleware global
+- **Validación simple**: Solo verificaciones básicas como null checks
+- **HTTP Status**: Apropiados según el tipo de excepción
+
+## Próximos Pasos
+
+1. ✅ Excepciones integradas en todo el stack
+2. ✅ Controllers limpios implementados
+3. ✅ Repositorios con manejo robusto
+4. 🔄 Implementar validaciones específicas en las entidades
+5. 🔄 Crear tests unitarios para cada tipo de excepción
+6. 🔄 Documentar reglas de negocio específicas del módulo
+7. 🔄 Decidir estrategia global: null vs NotFoundException en queries
+"@
+
+$exceptionUsageExample | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/README.md" -Encoding UTF8
+
+Write-Host "✅ Documentación de excepciones creada: $modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/README.md" -ForegroundColor Green
 
 # DbContext base en Models (será reemplazado por scaffold)
 $dbContextBase = @"
@@ -778,7 +1176,7 @@ $dbContextBase | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.In
 # DbContext extendido en Persistence (con UnitOfWork)
 $dbContextExtended = @"
 using $RootNamespace.$ModuleName.Infrastructure.Models;
-using $RootNamespace.SharedKernel.Interfaces;
+using __RootNamespace__.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -1104,7 +1502,7 @@ using $RootNamespace.$ModuleName.Application.Interfaces;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence;
 using $RootNamespace.$ModuleName.Infrastructure.Persistence.Repositories;
 using $RootNamespace.$ModuleName.Infrastructure.Models;
-using $RootNamespace.SharedKernel.Interfaces;
+using __RootNamespace__.SharedKernel.Interfaces;
 
 namespace $RootNamespace.$ModuleName.Infrastructure.Extensions;
 
@@ -1184,9 +1582,12 @@ $sampleCommand | Out-File -FilePath "$commandDir/Create${ModuleName}Command.cs" 
 
 $sampleCommandHandler = @"
 using MediatR;
-using $RootNamespace.SharedKernel.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using __RootNamespace__.SharedKernel.Interfaces;
 using $RootNamespace.$ModuleName.Domain.Entities;
 using $RootNamespace.$ModuleName.Domain.Abstractions;
+using $RootNamespace.$ModuleName.Domain.Exceptions;
+using __RootNamespace__.SharedKernel.Exceptions.Base;
 
 namespace $RootNamespace.$ModuleName.Application.Commands.Create${ModuleName};
 
@@ -1203,18 +1604,72 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
 
     public async Task<long> Handle(Create${ModuleName}Command request, CancellationToken cancellationToken)
     {
-        // TODO: Validate input data if necessary
-        
-        // Create new entity
-        var entity = ${EntityName}.Create(request.Name, request.Description);
+        try
+        {
+            // Validar datos de entrada
+            ValidateCommand(request);
+            
+            // Crear nueva entidad usando factory method del dominio
+            var entity = ${EntityName}.Create(request.Name, request.Description);
 
-        // Add to repository
-        await _repository.AddAsync(entity, cancellationToken);
+            // Agregar al repositorio
+            await _repository.AddAsync(entity, cancellationToken);
 
-        // Save changes
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            // Guardar cambios
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return entity.Id;
+            return entity.Id;
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            // Violación de constraint único (ej. nombre duplicado)
+            throw ${EntityName}BusinessRuleException.DuplicateName(request.Name);
+        }
+        catch (DbUpdateException ex) when (IsForeignKeyConstraintViolation(ex))
+        {
+            // Violación de foreign key
+            throw new ${ModuleName}DatabaseException(`"Foreign key constraint violation while creating ${EntityName.ToLower()}`", ex);
+        }
+        catch (DbUpdateException ex)
+        {
+            // Otros errores de base de datos
+            throw new ${ModuleName}DatabaseException(`"Failed to create ${EntityName.ToLower()}: Database operation failed`", ex);
+        }
+        catch (Exception ex) when (!(ex is BaseException))
+        {
+            // Errores inesperados - convertir a excepción de infraestructura
+            throw new ${ModuleName}InfrastructureException(`"Unexpected error while creating ${EntityName.ToLower()}`", ex);
+        }
+    }
+
+    private static void ValidateCommand(Create${ModuleName}Command command)
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        if (string.IsNullOrWhiteSpace(command.Name))
+            errors.Add(nameof(command.Name), new[] { "Name is required" });
+        else if (command.Name.Length > 100)
+            errors.Add(nameof(command.Name), new[] { "Name cannot exceed 100 characters" });
+
+        if (string.IsNullOrWhiteSpace(command.Description))
+            errors.Add(nameof(command.Description), new[] { "Description is required" });
+        else if (command.Description.Length > 500)
+            errors.Add(nameof(command.Description), new[] { "Description cannot exceed 500 characters" });
+
+        if (errors.Any())
+            throw new ${EntityName}ValidationException(errors);
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true ||
+               ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static bool IsForeignKeyConstraintViolation(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message.Contains("FOREIGN KEY", StringComparison.OrdinalIgnoreCase) == true ||
+               ex.InnerException?.Message.Contains("violates foreign key", StringComparison.OrdinalIgnoreCase) == true;
     }
 }
 "@
@@ -1266,6 +1721,7 @@ $sampleQueryById = @"
 using MediatR;
 using $RootNamespace.$ModuleName.Application.DTOs;
 using $RootNamespace.$ModuleName.Application.Interfaces;
+using $RootNamespace.$ModuleName.Domain.Exceptions;
 
 namespace $RootNamespace.$ModuleName.Application.Queries.Get${ModuleName}ById;
 
@@ -1282,8 +1738,14 @@ public class Get${ModuleName}ByIdHandler : IRequestHandler<Get${ModuleName}ByIdQ
 
     public async Task<${ModuleName}Dto?> Handle(Get${ModuleName}ByIdQuery request, CancellationToken cancellationToken)
     {
-        // Ahora retorna DTO directamente, no hay mapeo necesario
-        return await _readRepository.GetByIdAsync(request.Id, cancellationToken);
+        var result = await _readRepository.GetByIdAsync(request.Id, cancellationToken);
+        
+        // Option 1: Return null and let controller handle 404 (current approach)
+        // Option 2: Throw exception to be handled by global middleware (uncomment next line)
+        // if (result == null)
+        //     throw new ${EntityName}NotFoundException(request.Id);
+        
+        return result;
     }
 }
 "@
@@ -1562,13 +2024,22 @@ Write-Host "✅ Controller versionado con rutas en minúsculas" -ForegroundColor
 Write-Host "✅ Endpoints RESTful (CREATE, GET lista, GET por ID)" -ForegroundColor Green
 Write-Host "✅ Health check endpoint con información de versión" -ForegroundColor Green
 Write-Host "✅ Documentación Swagger con versionado" -ForegroundColor Green
+Write-Host "✅ Sistema de excepciones centralizado (RFC 7807)" -ForegroundColor Green
+Write-Host "✅ Códigos de error únicos por módulo ($errorPrefix" + "001-$errorPrefix" + "009)" -ForegroundColor Green
+Write-Host "✅ Controllers limpios que confían en el middleware global" -ForegroundColor Green
+Write-Host "✅ Repositorios con manejo de excepciones integrado" -ForegroundColor Green
+Write-Host "✅ Query handlers con opciones de NotFoundException" -ForegroundColor Green
 
 Write-Host "`nPróximos pasos:" -ForegroundColor Yellow
 Write-Host "1. [OK] Proyectos creados y agregados a la solución" -ForegroundColor Green
 Write-Host "2. [OK] Referencias configuradas" -ForegroundColor Green
 Write-Host "3. [OK] Estructura CQRS implementada" -ForegroundColor Green
-Write-Host "4. [PENDIENTE] Implementar repositorios en Infrastructure" -ForegroundColor White
-Write-Host "5. [PENDIENTE] Crear migraciones: ver $modulePath/README.md" -ForegroundColor White
-Write-Host "6. [PENDIENTE] Compilar: dotnet build" -ForegroundColor White
+Write-Host "4. [OK] Sistema de excepciones con códigos únicos ($errorPrefix" + "001-009)" -ForegroundColor Green
+Write-Host "5. [OK] Excepciones integradas en repositorios y handlers" -ForegroundColor Green
+Write-Host "6. [OK] Controllers limpios (sin try-catch innecesarios)" -ForegroundColor Green
+Write-Host "7. [PENDIENTE] Crear migraciones: ver $modulePath/README.md" -ForegroundColor White
+Write-Host "8. [PENDIENTE] Compilar: dotnet build" -ForegroundColor White
 
-Write-Host "`nInstrucciones detalladas guardadas en: $modulePath/README.md" -ForegroundColor Cyan
+Write-Host "`nDocumentacion creada:" -ForegroundColor Yellow
+Write-Host "- Instrucciones generales: $modulePath/README.md" -ForegroundColor Cyan
+Write-Host "- Excepciones del modulo: $modulePath/$ApplicationName.$ModuleName.Domain/Exceptions/README.md" -ForegroundColor Cyan
