@@ -280,7 +280,9 @@ public class ${ModuleName}Controller : ControllerBase
     public ${ModuleName}Controller(IMediator mediator)
     {
         _mediator = mediator;
-    }    /// <summary>
+    }
+
+    /// <summary>
     /// Create a new ${ModuleName.ToLower()}
     /// </summary>
     /// <param name="command">${ModuleName} data to create</param>
@@ -310,7 +312,9 @@ public class ${ModuleName}Controller : ControllerBase
         var query = new Get${ModuleName}sQuery();
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
-    }    /// <summary>
+    }
+
+    /// <summary>
     /// Get a ${ModuleName.ToLower()} by ID
     /// </summary>
     /// <param name="id">${ModuleName} ID</param>
@@ -352,7 +356,8 @@ public class ${ModuleName}Controller : ControllerBase
     /// Get ${ModuleName.ToLower()} report with additional data
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>${ModuleName} report data</returns>    [HttpGet("report")]
+    /// <returns>${ModuleName} report data</returns>
+    [HttpGet("report")]
     [ProducesResponseType(typeof(IEnumerable<${EntityName}ReportDto>), 200)]
     public async Task<ActionResult<IEnumerable<${EntityName}ReportDto>>> Get${ModuleName}Report(CancellationToken cancellationToken)
     {
@@ -1011,26 +1016,48 @@ public async Task AddAsync(${EntityName} entity, CancellationToken cancellationT
 }
 ``````
 
-### En Handlers
+### En Validadores (FluentValidation)
 ``````csharp
-// En Create${ModuleName}CommandHandler.cs - Ya implementado con manejo completo
+// En Create${ModuleName}CommandValidator.cs - Validación automática
+public class Create${ModuleName}CommandValidator : AbstractValidator<Create${ModuleName}Command>
+{
+    public Create${ModuleName}CommandValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required")
+            .MaximumLength(100).WithMessage("Name cannot exceed 100 characters");
+
+        RuleFor(x => x.Description)
+            .NotEmpty().WithMessage("Description is required")
+            .MaximumLength(500).WithMessage("Description cannot exceed 500 characters");
+    }
+}
+``````
+
+### En Handlers  
+``````csharp
+// En Create${ModuleName}CommandHandler.cs - Con DatabaseConstraintAnalyzer
 public async Task<long> Handle(Create${ModuleName}Command request, CancellationToken cancellationToken)
 {
     try
     {
-        ValidateCommand(request);
+        // Validaciones automáticas por ValidationBehavior + FluentValidation
+        // No necesitamos ValidateCommand() manual
+        
         var entity = ${EntityName}.Create(request.Name, request.Description);
         await _repository.AddAsync(entity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return entity.Id;
     }
-    catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+    catch (DbUpdateException ex) when (DatabaseConstraintAnalyzer.IsUniqueConstraintViolation(ex))
     {
+        // Análisis centralizado de constraints
         throw ${EntityName}BusinessRuleException.DuplicateName(request.Name);
     }
-    catch (DbUpdateException ex)
+    catch (DbUpdateException ex) when (DatabaseConstraintAnalyzer.IsForeignKeyConstraintViolation(ex))
     {
-        throw new ${ModuleName}DatabaseException("Failed to create ${EntityName.ToLower()}", ex);
+        var constraintName = DatabaseConstraintAnalyzer.ExtractConstraintName(ex);
+        throw new ${ModuleName}DatabaseException(`"Foreign key violation: {constraintName}`", ex);
     }
     catch (Exception ex) when (!(ex is BaseException))
     {
@@ -1098,12 +1125,15 @@ Cuando se lanza una excepción, el middleware global la convertirá a RFC 7807 P
 ## Beneficios del Sistema Implementado
 
 1. **Trazabilidad**: Cada error tiene un código único (${errorPrefix}XXX)
-2. **Consistencia**: Todas las excepciones siguen el mismo patrón
+2. **Consistencia**: Todas las excepciones siguen el mismo patrón  
 3. **RFC 7807**: Respuestas estructuradas y estándar
 4. **Logging**: Automático con niveles apropiados
 5. **Debugging**: Fácil identificación del módulo origen
 6. **Controllers Limpios**: Sin boilerplate de try-catch
 7. **Flexibilidad**: Opciones configurables en query handlers
+8. **🔥 FluentValidation**: Validaciones declarativas automáticas con ValidationBehavior
+9. **🔥 DatabaseConstraintAnalyzer**: Análisis centralizado de constraints, sin duplicación
+10. **🔥 Separación de Responsabilidades**: Validación, lógica y manejo de errores separados
 
 ## Estrategias de Manejo
 
@@ -1111,9 +1141,15 @@ Cuando se lanza una excepción, el middleware global la convertirá a RFC 7807 P
 - **ReadRepository**: Protege contra errores de infraestructura, permite null para "no encontrado"
 - **WriteRepository**: Protege todas las operaciones CUD con excepciones específicas
 
+### Nivel de Validación
+- **FluentValidation**: Validaciones declarativas en clases dedicadas (Create${ModuleName}CommandValidator)
+- **ValidationBehavior**: Intercepta automáticamente y convierte a ValidationException
+- **Sin validaciones manuales**: Los handlers se enfocan solo en lógica de negocio
+
 ### Nivel de Handler  
-- **CommandHandler**: Manejo completo con validación, reglas de negocio y conversión de excepciones
+- **CommandHandler**: Lógica de negocio pura + DatabaseConstraintAnalyzer para constraints
 - **QueryHandler**: Flexible - puede retornar null o lanzar NotFoundException según necesidad
+- **Sin try-catch para validación**: ValidationBehavior maneja automáticamente
 
 ### Nivel de Controller
 - **Sin try-catch**: Confianza total en el middleware global
@@ -1580,10 +1616,46 @@ public record Create${ModuleName}Command(
 
 $sampleCommand | Out-File -FilePath "$commandDir/Create${ModuleName}Command.cs" -Encoding UTF8
 
+# Sample Command Validator (FluentValidation)
+$sampleCommandValidator = @"
+using FluentValidation;
+
+namespace $RootNamespace.$ModuleName.Application.Commands.Create${ModuleName};
+
+/// <summary>
+/// Validador FluentValidation para Create${ModuleName}Command
+/// Template básico para comandos de creación - personalizar según necesidades del módulo
+/// </summary>
+public class Create${ModuleName}CommandValidator : AbstractValidator<Create${ModuleName}Command>
+{
+    public Create${ModuleName}CommandValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .WithMessage("Name is required")
+            .MaximumLength(100)
+            .WithMessage("Name cannot exceed 100 characters")
+            .MinimumLength(2)
+            .WithMessage("Name must be at least 2 characters");
+
+        RuleFor(x => x.Description)
+            .NotEmpty()
+            .WithMessage("Description is required")
+            .MaximumLength(500)
+            .WithMessage("Description cannot exceed 500 characters")
+            .MinimumLength(5)
+            .WithMessage("Description must be at least 5 characters");
+    }
+}
+"@
+
+$sampleCommandValidator | Out-File -FilePath "$commandDir/Create${ModuleName}CommandValidator.cs" -Encoding UTF8
+
 $sampleCommandHandler = @"
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using __RootNamespace__.SharedKernel.Interfaces;
+using __RootNamespace__.SharedKernel.Database;
 using $RootNamespace.$ModuleName.Domain.Entities;
 using $RootNamespace.$ModuleName.Domain.Abstractions;
 using $RootNamespace.$ModuleName.Domain.Exceptions;
@@ -1591,6 +1663,11 @@ using __RootNamespace__.SharedKernel.Exceptions.Base;
 
 namespace $RootNamespace.$ModuleName.Application.Commands.Create${ModuleName};
 
+/// <summary>
+/// Command handler para crear ${EntityName.ToLower()}s
+/// Usa FluentValidation (ValidationBehavior) para validaciones automáticas
+/// Usa DatabaseConstraintAnalyzer para manejo centralizado de constraints
+/// </summary>
 public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleName}Command, long>
 {
     private readonly IUnitOfWork _unitOfWork;
@@ -1606,8 +1683,8 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
     {
         try
         {
-            // Validar datos de entrada
-            ValidateCommand(request);
+            // Las validaciones se manejan automáticamente por ValidationBehavior + FluentValidation
+            // No necesitamos validaciones manuales aquí
             
             // Crear nueva entidad usando factory method del dominio
             var entity = ${EntityName}.Create(request.Name, request.Description);
@@ -1620,19 +1697,27 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
 
             return entity.Id;
         }
-        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (DatabaseConstraintAnalyzer.IsUniqueConstraintViolation(ex))
         {
-            // Violación de constraint único (ej. nombre duplicado)
+            // Manejo centralizado de violaciones de constraint único
+            var constraintName = DatabaseConstraintAnalyzer.ExtractConstraintName(ex);
             throw ${EntityName}BusinessRuleException.DuplicateName(request.Name);
         }
-        catch (DbUpdateException ex) when (IsForeignKeyConstraintViolation(ex))
+        catch (DbUpdateException ex) when (DatabaseConstraintAnalyzer.IsForeignKeyConstraintViolation(ex))
         {
-            // Violación de foreign key
-            throw new ${ModuleName}DatabaseException(`"Foreign key constraint violation while creating ${EntityName.ToLower()}`", ex);
+            // Manejo centralizado de violaciones de foreign key
+            var constraintName = DatabaseConstraintAnalyzer.ExtractConstraintName(ex);
+            throw new ${ModuleName}DatabaseException(`"Foreign key constraint violation while creating ${EntityName.ToLower()}: {constraintName}`", ex);
+        }
+        catch (DbUpdateException ex) when (DatabaseConstraintAnalyzer.IsCheckConstraintViolation(ex))
+        {
+            // Manejo centralizado de violaciones de check constraints
+            var constraintName = DatabaseConstraintAnalyzer.ExtractConstraintName(ex);
+            throw new ${ModuleName}DatabaseException(`"Check constraint violation while creating ${EntityName.ToLower()}: {constraintName}`", ex);
         }
         catch (DbUpdateException ex)
         {
-            // Otros errores de base de datos
+            // Otros errores de base de datos no identificados
             throw new ${ModuleName}DatabaseException(`"Failed to create ${EntityName.ToLower()}: Database operation failed`", ex);
         }
         catch (Exception ex) when (!(ex is BaseException))
@@ -1640,36 +1725,6 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
             // Errores inesperados - convertir a excepción de infraestructura
             throw new ${ModuleName}InfrastructureException(`"Unexpected error while creating ${EntityName.ToLower()}`", ex);
         }
-    }
-
-    private static void ValidateCommand(Create${ModuleName}Command command)
-    {
-        var errors = new Dictionary<string, string[]>();
-
-        if (string.IsNullOrWhiteSpace(command.Name))
-            errors.Add(nameof(command.Name), new[] { "Name is required" });
-        else if (command.Name.Length > 100)
-            errors.Add(nameof(command.Name), new[] { "Name cannot exceed 100 characters" });
-
-        if (string.IsNullOrWhiteSpace(command.Description))
-            errors.Add(nameof(command.Description), new[] { "Description is required" });
-        else if (command.Description.Length > 500)
-            errors.Add(nameof(command.Description), new[] { "Description cannot exceed 500 characters" });
-
-        if (errors.Any())
-            throw new ${EntityName}ValidationException(errors);
-    }
-
-    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
-    {
-        return ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true ||
-               ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    private static bool IsForeignKeyConstraintViolation(DbUpdateException ex)
-    {
-        return ex.InnerException?.Message.Contains("FOREIGN KEY", StringComparison.OrdinalIgnoreCase) == true ||
-               ex.InnerException?.Message.Contains("violates foreign key", StringComparison.OrdinalIgnoreCase) == true;
     }
 }
 "@
