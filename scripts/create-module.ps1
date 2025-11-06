@@ -1213,6 +1213,7 @@ $dbContextBase | Out-File -FilePath "$modulePath/$ApplicationName.$ModuleName.In
 $dbContextExtended = @"
 using $RootNamespace.$ModuleName.Infrastructure.Models;
 using __RootNamespace__.SharedKernel.Interfaces;
+using __RootNamespace__.SharedKernel.Attributes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -1222,6 +1223,11 @@ namespace $RootNamespace.$ModuleName.Infrastructure.Persistence;
 /// DbContext extendido que hereda del DbContext generado por scaffold
 /// e implementa la lógica de UnitOfWork para transacciones
 /// </summary>
+[ModuleContext("${ModuleName}", 
+    "$RootNamespace.$ModuleName", 
+    "$RootNamespace.$ModuleName.Domain", 
+    "$RootNamespace.$ModuleName.Application", 
+    "$RootNamespace.$ModuleName.Infrastructure")]
 public class ${ModuleName}ExtendedDbContext : ${ModuleName}DbContext, IUnitOfWork
 {
     private IDbContextTransaction? _currentTransaction;
@@ -1564,8 +1570,8 @@ public static class ServiceCollectionExtensions
                 configuration.GetConnectionString("DefaultConnection"),
                 b => b.MigrationsAssembly(typeof(Models.${ModuleName}DbContext).Assembly.FullName)));
 
-        // Registrar IUnitOfWork usando el DbContext extendido
-        services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<${ModuleName}ExtendedDbContext>());
+        // NOTA: IUnitOfWork ahora se resuelve automáticamente via UnitOfWorkFactory
+        // services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<${ModuleName}ExtendedDbContext>());
 
         // Registrar repositorios (usar DbContext extendido para operaciones CUD)
         services.AddScoped<I${EntityName}Repository, ${EntityName}Repository>();
@@ -1673,9 +1679,9 @@ public class Create${ModuleName}CommandHandler : IRequestHandler<Create${ModuleN
     private readonly IUnitOfWork _unitOfWork;
     private readonly I${EntityName}Repository _repository;
 
-    public Create${ModuleName}CommandHandler(IUnitOfWork unitOfWork, I${EntityName}Repository repository)
+    public Create${ModuleName}CommandHandler(IUnitOfWorkFactory unitOfWorkFactory, I${EntityName}Repository repository)
     {
-        _unitOfWork = unitOfWork;
+        _unitOfWork = unitOfWorkFactory.GetUnitOfWork<I${EntityName}Repository>();
         _repository = repository;
     }
 
