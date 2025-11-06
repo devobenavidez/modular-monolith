@@ -465,8 +465,8 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<${MODULE_NAME}DbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
-        // Registrar como IUnitOfWork
-        services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<${MODULE_NAME}DbContext>());
+        // NOTA: IUnitOfWork ahora se resuelve automáticamente via UnitOfWorkFactory
+        // services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<${MODULE_NAME}DbContext>());
 
         // Registrar repositorios
         services.AddScoped<I${MODULE_NAME}Repository, ${MODULE_NAME}Repository>();

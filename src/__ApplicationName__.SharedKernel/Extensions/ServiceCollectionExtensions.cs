@@ -42,6 +42,9 @@ public static class ServiceCollectionExtensions
             return new DapperConnectionFactory(connectionString);
         });
 
+        // Registrar UnitOfWork Factory
+        services.AddScoped<IUnitOfWorkFactory, Services.UnitOfWorkFactory>();
+
         return services;
     }
 
@@ -61,6 +64,9 @@ public static class ServiceCollectionExtensions
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(DapperQueryBehavior<,>));
+
+        // Registrar UnitOfWork Factory
+        services.AddScoped<IUnitOfWorkFactory, Services.UnitOfWorkFactory>();
 
         return services;
     }
